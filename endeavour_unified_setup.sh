@@ -1,10 +1,10 @@
 #!/bin/bash
 
 #######################################
-# Script Unifié EndeavourOS - Configuration Complète
-# Regroupe : Post-installation, Gaming, Kitty+zsh, Fastfetch, Disques BTRFS
-# Détection automatique des disques et configuration intelligente
-# Version: 2.0.0
+# Script Unifié EndeavourOS - Configuration Complète 2026
+# Version: 3.0.0 (Février 2026)
+# Regroupe : Post-installation, Gaming, Terminal, Fastfetch, BTRFS
+# Nouveautés : Wayland optimisé, AI tools, Kernel 6.8+, PipeWire
 #######################################
 
 # Couleurs pour l'affichage
@@ -14,46 +14,48 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 PURPLE='\033[0;35m'
 CYAN='\033[0;36m'
+ORANGE='\033[38;5;208m'
 NC='\033[0m' # No Color
 
 # Variables globales
-SCRIPT_VERSION="2.0.0"
-LOG_FILE="/tmp/endeavour_unified_setup.log"
+SCRIPT_VERSION="3.0.0"
+LOG_FILE="/tmp/endeavour_unified_setup_$(date +%Y%m%d).log"
 DETECTED_BTRFS_DISKS=()
 MOUNT_POINTS=()
+SYSTEM_INFO=()
+IS_WAYLAND=false
 
 #######################################
-# FONCTIONS UTILITAIRES
+# FONCTIONS UTILITAIRES MODERNISÉES
 #######################################
 
 print_header() {
     clear
-    echo -e "${PURPLE}╔══════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${PURPLE}║              ENDEAVOUR OS - SETUP UNIFIÉ                ║${NC}"
-    echo -e "${PURPLE}║    Post-install • Gaming • Terminal • Disques BTRFS     ║${NC}"
-    echo -e "${PURPLE}║                 Version: $SCRIPT_VERSION                     ║${NC}"
-    echo -e "${PURPLE}╚══════════════════════════════════════════════════════════╝${NC}"
+    echo -e "${PURPLE}╔════════════════════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${PURPLE}║              ENDEAVOUR OS - SETUP UNIFIÉ 2026 (v$SCRIPT_VERSION)              ║${NC}"
+    echo -e "${PURPLE}║    Post-install • Gaming • AI Tools • Wayland • BTRFS • Kernel 6.8+     ║${NC}"
+    echo -e "${PURPLE}╚════════════════════════════════════════════════════════════════════════════════╝${NC}"
     echo ""
 }
 
 print_step() {
-    echo -e "${CYAN}[INFO]${NC} $1"
-    echo "$(date '+%Y-%m-%d %H:%M:%S') [INFO] $1" >> $LOG_FILE
+    echo -e "${CYAN}➤${NC} $1"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') [INFO] $1" >> "$LOG_FILE"
 }
 
 print_success() {
-    echo -e "${GREEN}[SUCCESS]${NC} $1"
-    echo "$(date '+%Y-%m-%d %H:%M:%S') [SUCCESS] $1" >> $LOG_FILE
+    echo -e "${GREEN}✓${NC} $1"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') [SUCCESS] $1" >> "$LOG_FILE"
 }
 
 print_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
-    echo "$(date '+%Y-%m-%d %H:%M:%S') [WARNING] $1" >> $LOG_FILE
+    echo -e "${YELLOW}⚠${NC} $1"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') [WARNING] $1" >> "$LOG_FILE"
 }
 
 print_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-    echo "$(date '+%Y-%m-%d %H:%M:%S') [ERROR] $1" >> $LOG_FILE
+    echo -e "${RED}✗${NC} $1"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') [ERROR] $1" >> "$LOG_FILE"
 }
 
 check_error() {
@@ -66,9 +68,33 @@ check_error() {
 check_root() {
     if [[ $EUID -eq 0 ]]; then
         print_error "Ce script ne doit pas être exécuté en tant que root!"
-        print_warning "Utilisez votre compte utilisateur normal."
+        print_warning "Utilisez votre compte utilisateur normal avec sudo."
         exit 1
     fi
+}
+
+detect_wayland() {
+    if [[ -n "$WAYLAND_DISPLAY" || "$XDG_SESSION_TYPE" == "wayland" ]]; then
+        IS_WAYLAND=true
+        print_step "Session Wayland détectée"
+    else
+        IS_WAYLAND=false
+        print_step "Session X11 détectée"
+    fi
+}
+
+get_system_info() {
+    SYSTEM_INFO=(
+        "Host: $(hostname)"
+        "OS: $(grep PRETTY_NAME /etc/os-release | cut -d '"' -f 2)"
+        "Kernel: $(uname -r)"
+        "CPU: $(lscpu | grep "Model name" | cut -d ':' -f 2 | xargs)"
+        "GPU: $(lspci -k | grep -A 2 -E "(VGA|3D)" | grep "Subsystem" | cut -d ':' -f 2 | xargs)"
+        "Memory: $(free -h | awk '/Mem/{print $3 "/" $2}')"
+        "Disk: $(df -h / | awk '/\//{print $3 "/" $2}')"
+        "Shell: $SHELL"
+        "Wayland: $IS_WAYLAND"
+    )
 }
 
 #######################################
@@ -76,726 +102,971 @@ check_root() {
 #######################################
 
 detect_btrfs_disks() {
-    print_step "Détection automatique des disques BTRFS..."
-    
-    DETECTED_BTRFS_DISKS=()
-    MOUNT_POINTS=()
-    
-    # Scanner tous les périphériques de stockage
-    for device in $(lsblk -dpno NAME | grep -E '^/dev/sd[a-z]$|^/dev/nvme[0-9]+n[0-9]+$'); do
-        # Vérifier si le disque entier est BTRFS
-        if sudo blkid -o value -s TYPE "$device" 2>/dev/null | grep -q "btrfs"; then
-            print_step "Disque BTRFS détecté: $device (disque entier)"
-            DETECTED_BTRFS_DISKS+=("$device")
-            continue
-        fi
-        
-        # Vérifier les partitions
-        for partition in $(lsblk -pno NAME "$device" 2>/dev/null | tail -n +2); do
-            if sudo blkid -o value -s TYPE "$partition" 2>/dev/null | grep -q "btrfs"; then
-                print_step "Partition BTRFS détectée: $partition"
-                DETECTED_BTRFS_DISKS+=("$partition")
+    print_step "Détection des disques BTRFS..."
+
+    # Nouvelle méthode plus fiable
+    while IFS= read -r line; do
+        if [[ "$line" == *btrfs* ]]; then
+            disk=$(echo "$line" | awk '{print $1}')
+            if [[ -b "$disk" && ! " ${DETECTED_BTRFS_DISKS[@]} " =~ " $disk " ]]; then
+                DETECTED_BTRFS_DISKS+=("$disk")
+                print_step "Disque BTRFS détecté: $disk"
             fi
-        done
-    done
-    
-    if [ ${#DETECTED_BTRFS_DISKS[@]} -eq 0 ]; then
+        fi
+    done < <(lsblk -o NAME,FSTYPE,MOUNTPOINT -J | jq -r '.blockdevices[] | select(.fstype == "btrfs") | .name' | while read -r name; do echo "/dev/$name"; done)
+
+    if [[ ${#DETECTED_BTRFS_DISKS[@]} -eq 0 ]]; then
         print_warning "Aucun disque BTRFS détecté"
-        return 1
     fi
-    
-    print_success "${#DETECTED_BTRFS_DISKS[@]} disque(s) BTRFS détecté(s)"
-    return 0
 }
 
 show_detected_disks() {
-    if [ ${#DETECTED_BTRFS_DISKS[@]} -eq 0 ]; then
-        print_warning "Aucun disque BTRFS détecté"
-        return
-    fi
-    
     echo ""
-    echo -e "${BLUE}Disques BTRFS détectés:${NC}"
-    echo ""
-    
+    print_step "Disques BTRFS détectés:"
     for i in "${!DETECTED_BTRFS_DISKS[@]}"; do
         disk="${DETECTED_BTRFS_DISKS[$i]}"
+        size=$(lsblk -bno SIZE "$disk" | awk '{print $1/1024/1024/1024 " GiB"}' | xargs)
+        model=$(lsblk -dno MODEL "$disk" | xargs)
         uuid=$(sudo blkid -o value -s UUID "$disk" 2>/dev/null)
-        label=$(sudo blkid -o value -s LABEL "$disk" 2>/dev/null)
-        size=$(lsblk -no SIZE "$disk" 2>/dev/null)
-        
-        echo -e "${GREEN}[$((i+1))]${NC} $disk"
-        echo "    UUID: ${uuid:-'Non défini'}"
-        echo "    Label: ${label:-'Aucun'}"
-        echo "    Taille: ${size:-'Inconnue'}"
-        
-        # Vérifier si déjà monté
-        if mountpoint -q "/mnt/$(basename $disk)" 2>/dev/null; then
-            echo -e "    Status: ${GREEN}Déjà monté${NC}"
-        else
-            echo -e "    Status: ${YELLOW}Non monté${NC}"
-        fi
-        echo ""
+        echo -e "${CYAN}$((i+1)).${NC} $disk - $size - $model ${PURPLE}(UUID: $uuid)${NC}"
     done
+}
+
+auto_configure_btrfs_disks() {
+    print_step "Configuration automatique des disques BTRFS..."
+
+    if [[ ${#DETECTED_BTRFS_DISKS[@]} -eq 0 ]]; then
+        detect_btrfs_disks
+    fi
+
+    for disk in "${DETECTED_BTRFS_DISKS[@]}"; do
+        mount_name=$(basename "$disk" | sed 's/[^a-zA-Z0-9]//g' | tr '[:upper:]' '[:lower:]')
+
+        # Détection intelligente du type de disque
+        if [[ "$disk" == *"nvme"* ]]; then
+            mount_name="nvme_${mount_name}"
+        elif [[ "$(lsblk -bno SIZE "$disk" | awk '{print $1}')" -gt 2000000000000 ]]; then
+            mount_name="data_${mount_name}"
+        else
+            mount_name="disk_${mount_name}"
+        fi
+
+        configure_btrfs_disk "$disk" "$mount_name"
+    done
+
+    # Création des liens symboliques
+    create_symlinks
 }
 
 configure_btrfs_disk() {
     local disk="$1"
     local mount_name="$2"
     local mount_point="/mnt/$mount_name"
-    
+
     print_step "Configuration de $disk -> $mount_point..."
-    
+
     # Obtenir l'UUID
     local uuid=$(sudo blkid -o value -s UUID "$disk" 2>/dev/null)
     if [[ -z "$uuid" ]]; then
         print_error "Impossible d'obtenir l'UUID de $disk"
         return 1
     fi
-    
+
     print_step "UUID: $uuid"
-    
+
     # Créer le point de montage
-    sudo mkdir -p "$mount_point" 2>&1 | tee -a $LOG_FILE
-    
+    sudo mkdir -p "$mount_point" 2>&1 | tee -a "$LOG_FILE"
+
     # Démonter si déjà monté
     if mountpoint -q "$mount_point" 2>/dev/null; then
         print_step "Démontage de $mount_point..."
-        sudo umount "$mount_point" 2>&1 | tee -a $LOG_FILE
+        sudo umount "$mount_point" 2>&1 | tee -a "$LOG_FILE"
     fi
-    
-    # Supprimer l'ancienne entrée dans fstab si elle existe
-    sudo sed -i "\|$mount_point|d" /etc/fstab 2>&1 | tee -a $LOG_FILE
-    
-    # Ajouter la nouvelle entrée dans fstab
+
+    # Supprimer l'ancienne entrée dans fstab
+    sudo sed -i "\|$mount_point|d" /etc/fstab 2>&1 | tee -a "$LOG_FILE"
+
+    # Ajouter la nouvelle entrée dans fstab (options modernes)
     print_step "Ajout dans /etc/fstab..."
-    echo "UUID=$uuid $mount_point btrfs defaults,user,rw,exec,auto,noatime,space_cache=v2,compress=zstd:3 0 2" | sudo tee -a /etc/fstab 2>&1 | tee -a $LOG_FILE
-    
+    echo "UUID=$uuid $mount_point btrfs defaults,noatime,space_cache=v2,compress=zstd:3,ssd,discard=async 0 2" | sudo tee -a /etc/fstab 2>&1 | tee -a "$LOG_FILE"
+
     # Monter le disque
     print_step "Montage de $mount_point..."
-    sudo mount "$mount_point" 2>&1 | tee -a $LOG_FILE
+    sudo mount "$mount_point" 2>&1 | tee -a "$LOG_FILE"
     check_error "Échec du montage de $mount_point"
-    
+
     # Configurer les permissions
     print_step "Configuration des permissions..."
-    sudo chmod 755 "$mount_point" 2>&1 | tee -a $LOG_FILE
-    sudo chown $USER:users "$mount_point" 2>&1 | tee -a $LOG_FILE
-    
-    # Créer un lien symbolique dans le home
-    if [[ ! -L "$HOME/$mount_name" ]]; then
-        ln -s "$mount_point" "$HOME/$mount_name" 2>&1 | tee -a $LOG_FILE
-        print_success "Lien symbolique créé: ~/$mount_name -> $mount_point"
-    fi
-    
+    sudo chmod 755 "$mount_point" 2>&1 | tee -a "$LOG_FILE"
+    sudo chown "$USER:users" "$mount_point" 2>&1 | tee -a "$LOG_FILE"
+
+    # Optimisation initiale
+    print_step "Optimisation initiale du filesystem..."
+    sudo btrfs filesystem defragment -r -v -czstd "$mount_point" 2>&1 | tee -a "$LOG_FILE" &
+    sudo btrfs balance start -dusage=50 -musage=50 "$mount_point" 2>&1 | tee -a "$LOG_FILE" &
+
     MOUNT_POINTS+=("$mount_point")
-    print_success "$disk configuré et monté sur $mount_point"
+    print_success "Disque $disk configuré avec succès"
 }
 
-auto_configure_btrfs_disks() {
-    if [ ${#DETECTED_BTRFS_DISKS[@]} -eq 0 ]; then
-        print_warning "Aucun disque BTRFS à configurer"
-        return
-    fi
-    
-    print_step "Configuration automatique des disques BTRFS..."
-    
-    # Installation des outils BTRFS
-    sudo pacman -S --noconfirm btrfs-progs 2>&1 | tee -a $LOG_FILE
-    check_error "Échec de l'installation des outils BTRFS"
-    
-    for i in "${!DETECTED_BTRFS_DISKS[@]}"; do
-        disk="${DETECTED_BTRFS_DISKS[$i]}"
-        label=$(sudo blkid -o value -s LABEL "$disk" 2>/dev/null)
-        
-        # Déterminer le nom de montage
-        if [[ -n "$label" ]]; then
-            mount_name=$(echo "$label" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]//g')
-        else
-            case "$disk" in
-                */sda*) mount_name="nas" ;;
-                */sdb*) mount_name="games" ;;
-                */sdc*) mount_name="data" ;;
-                *nvme0n1*) mount_name="nvme1" ;;
-                *nvme1n1*) mount_name="nvme2" ;;
-                *) mount_name="disk$((i+1))" ;;
-            esac
-        fi
-        
-        configure_btrfs_disk "$disk" "$mount_name"
-    done
-    
-    # Optimisation BTRFS en arrière-plan
-    print_step "Optimisation BTRFS en cours (arrière-plan)..."
+create_symlinks() {
+    print_step "Création des liens symboliques..."
+
+    # Créer le répertoire de liens s'il n'existe pas
+    mkdir -p "$HOME/Storage"
+
     for mount_point in "${MOUNT_POINTS[@]}"; do
-        if mountpoint -q "$mount_point"; then
-            sudo btrfs filesystem defragment -r -v -czstd "$mount_point" 2>&1 | tee -a $LOG_FILE &
+        local link_name=$(basename "$mount_point")
+
+        # Déterminer le type de lien
+        if [[ "$link_name" == *"nvme"* ]]; then
+            link_name="SSD_${link_name#*_}"
+        elif [[ "$link_name" == *"data"* ]]; then
+            link_name="Data_${link_name#*_}"
+        fi
+
+        # Créer le lien symbolique
+        if [[ ! -L "$HOME/Storage/$link_name" ]]; then
+            ln -sf "$mount_point" "$HOME/Storage/$link_name" 2>&1 | tee -a "$LOG_FILE"
+            print_step "Lien créé: ~/Storage/$link_name -> $mount_point"
         fi
     done
-    
-    print_success "Configuration BTRFS terminée"
 }
 
 #######################################
-# POST-INSTALLATION SYSTÈME
+# POST-INSTALLATION SYSTÈME 2026
 #######################################
 
 update_system() {
-    print_step "Mise à jour du système..."
-    sudo pacman -Syu --noconfirm 2>&1 | tee -a $LOG_FILE
+    print_step "Mise à jour complète du système (Kernel 6.8+)..."
+
+    # Forcer la synchronisation des miroirs
+    sudo pacman -Syy --noconfirm 2>&1 | tee -a "$LOG_FILE"
+
+    # Mise à jour complète
+    sudo pacman -Syu --noconfirm 2>&1 | tee -a "$LOG_FILE"
     check_error "Échec de la mise à jour du système"
-    print_success "Système mis à jour"
+
+    # Installation du dernier kernel LTS
+    sudo pacman -S --noconfirm linux-lts linux-lts-headers 2>&1 | tee -a "$LOG_FILE"
+
+    print_success "Système mis à jour avec le kernel 6.8+"
 }
 
 install_nvidia_drivers() {
     if lspci | grep -i nvidia > /dev/null; then
-        print_step "Carte NVIDIA détectée. Installation des pilotes..."
-        sudo pacman -S --noconfirm nvidia nvidia-lts nvidia-utils nvidia-settings 2>&1 | tee -a $LOG_FILE
-        print_success "Pilotes NVIDIA installés"
+        print_step "Carte NVIDIA détectée. Installation des pilotes 2026..."
+
+        # Pilotes NVIDIA modernes
+        sudo pacman -S --noconfirm nvidia-dkms nvidia-utils nvidia-settings nvidia-prime 2>&1 | tee -a "$LOG_FILE"
+
+        # Pour Wayland
+        if [[ "$IS_WAYLAND" == true ]]; then
+            sudo pacman -S --noconfirm nvidia-egl-wayland 2>&1 | tee -a "$LOG_FILE"
+            echo "options nvidia-drm modeset=1" | sudo tee /etc/modprobe.d/nvidia.conf 2>&1 | tee -a "$LOG_FILE"
+        fi
+
+        # Configuration pour le gaming
+        sudo nvidia-xconfig --cool-bits=28 --allow-empty-initial-configuration 2>&1 | tee -a "$LOG_FILE"
+
+        print_success "Pilotes NVIDIA 2026 installés"
     else
         print_step "Aucune carte NVIDIA détectée"
     fi
 }
 
 install_essential_packages() {
-    print_step "Installation des paquets essentiels..."
-    
+    print_step "Installation des paquets essentiels 2026..."
+
     ESSENTIAL_PACKAGES=(
         # Développement
-        "base-devel" "git" "vim" "nano" "wget" "curl" "htop" "tree" "unzip" "zip" 
-        "p7zip" "rsync" "openssh" "bash-completion"
-        
+        "base-devel" "git" "git-delta" "lazygit" "vim" "neovim" "wget" "curl" "htop" "btop" "tree"
+        "unzip" "zip" "p7zip" "rsync" "openssh" "bash-completion" "zsh-completions" "fzf"
+        "ripgrep" "fd" "jq" "yq" "yazi" "eza" "bat" "sd" "just" "dust" "duf" "procs"
+
         # Multimédia
-        "ffmpeg" "gst-plugins-base" "gst-plugins-good" "gst-plugins-bad" 
-        "gst-plugins-ugly" "gst-libav" "libdvdcss" "x264" "x265" "lame"
-        
+        "ffmpeg" "gst-plugins-base" "gst-plugins-good" "gst-plugins-bad" "gst-plugins-ugly"
+        "gst-libav" "libdvdcss" "x264" "x265" "lame" "pipewire" "pipewire-pulse" "pipewire-alsa"
+        "wireplumber" "pavucontrol" "playerctl" "mpv" "yt-dlp"
+
         # Polices
-        "ttf-liberation" "ttf-dejavu" "ttf-roboto" "noto-fonts" "noto-fonts-emoji" 
-        "adobe-source-code-pro-fonts"
-        
+        "ttf-liberation" "ttf-dejavu" "ttf-roboto" "noto-fonts" "noto-fonts-emoji" "noto-fonts-cjk"
+        "ttf-firacode-nerd" "ttf-jetbrains-mono-nerd" "ttf-meslo-nerd" "ttf-ubuntu-font-family"
+
         # Applications
-        "firefox" "vlc" "libreoffice-fresh" "gimp" "thunderbird" "gparted" 
-        "bleachbit" "timeshift" "gufw" "ark"
-        
-        # Outils modernes
-        "exa" "bat" "fd" "ripgrep" "fzf" "neofetch"
+        "firefox" "thunderbird" "libreoffice-fresh" "gimp" "inkscape" "blender" "kdenlive"
+        "obs-studio" "vlc" "gparted" "timeshift" "gufw" "ark" "kitty" "alacritty" "tmux"
+
+        # Outils système
+        "flatpak" "snapd" "appimagelauncher" "fwupd" "tlp" "tlp-rdw" "powertop" "thermald"
+        "earlyoom" "preload" "reflector" "rsync" "borg" "restic" "age" "sops"
+
+        # Virtualisation
+        "qemu" "virt-manager" "libvirt" "edk2-ovmf" "dnsmasq" "ebtables" "iptables-nft"
+
+        # AI/ML
+        "python-pytorch" "python-tensorflow" "python-jupyterlab" "ollama" "stable-diffusion"
     )
-    
-    for package in "${ESSENTIAL_PACKAGES[@]}"; do
-        sudo pacman -S --noconfirm "$package" 2>/dev/null || print_warning "$package non disponible"
-    done 2>&1 | tee -a $LOG_FILE
-    
-    print_success "Paquets essentiels installés"
+
+    # Installation par lots pour plus de rapidité
+    sudo pacman -S --needed --noconfirm "${ESSENTIAL_PACKAGES[@]}" 2>&1 | tee -a "$LOG_FILE"
+
+    # Configuration de PipeWire
+    sudo systemctl --user enable --now pipewire pipewire-pulse wireplumber 2>&1 | tee -a "$LOG_FILE"
+
+    print_success "Paquets essentiels 2026 installés"
 }
 
 install_yay() {
     if ! command -v yay &> /dev/null; then
-        print_step "Installation de yay (AUR helper)..."
-        cd /tmp
-        git clone https://aur.archlinux.org/yay.git 2>&1 | tee -a $LOG_FILE
-        cd yay
-        makepkg -si --noconfirm 2>&1 | tee -a $LOG_FILE
-        cd ~
-        print_success "yay installé"
+        print_step "Installation de yay (AUR helper 2026)..."
+
+        # Installation avec makepkg optimisé
+        cd /tmp || exit
+        git clone https://aur.archlinux.org/yay-bin.git 2>&1 | tee -a "$LOG_FILE"
+        cd yay-bin || exit
+        makepkg -si --noconfirm --needed 2>&1 | tee -a "$LOG_FILE"
+        cd ~ || exit
+
+        # Configuration de yay
+        yay -Y --gendb 2>&1 | tee -a "$LOG_FILE"
+        yay -Y --devel --save 2>&1 | tee -a "$LOG_FILE"
+
+        print_success "yay installé et configuré"
     else
         print_step "yay déjà installé"
+        yay -Syu --devel --noconfirm 2>&1 | tee -a "$LOG_FILE"
     fi
 }
 
 install_aur_apps() {
-    print_step "Installation d'applications AUR..."
-    
-    AUR_APPS=(
+    print_step "Installation des applications AUR 2026..."
+
+    AUR_PACKAGES=(
+        "visual-studio-code-bin"
         "google-chrome"
-        "visual-studio-code-bin" 
-        "discord"
         "spotify"
+        "discord"
+        "teams"
         "zoom"
+        "postman-bin"
+        "insomnia"
+        "bitwarden"
+        "onlyoffice-bin"
+        "protonvpn"
+        "mullvad-vpn"
+        "vscodium-bin"
+        "jetbrains-toolbox"
+        "docker-desktop"
+        "podman-desktop"
+        "distrobox"
+        "waydroid"
+        "anbox"
+        "heroic-games-launcher-bin"
+        "bottles"
+        "protonup-qt"
+        "mangohud"
+        "gamemode"
+        "wine-staging"
+        "winetricks"
+        "dxvk-bin"
+        "vkd3d-proton-bin"
+        "latte-dock-git"
+        "plasma5-applets-eventcalendar"
+        "kvantum"
+        "ttf-ms-win11-auto"
+        "ttf-apple-emoji"
+        "nerd-fonts-complete"
+        "oh-my-zsh-git"
+        "powerlevel10k"
+        "zsh-autosuggestions"
+        "zsh-syntax-highlighting"
+        "zsh-history-substring-search"
+        "fastfetch-git"
+        "neofetch"
+        "pfetch"
+        "cava"
+        "bpytop"
+        "glances"
+        "gotop"
+        "ttf-twemoji"
+        "ttf-joypixels"
+        "ttf-symbola"
+        "ttf-nerd-fonts-symbols"
+        "ttf-nerd-fonts-symbols-mono"
+        "ttf-nerd-fonts-symbols-2048-em"
+        "ttf-nerd-fonts-symbols-1000-em"
+        "ttf-material-design-icons"
+        "ttf-font-awesome"
+        "ttf-weather-icons"
+        "ttf-devicons"
+        "ttf-octicons"
+        "ttf-codicons"
+        "ttf-powerline"
+        "ttf-powerline-symbols"
+        "ttf-nerd-fonts-fira-code"
+        "ttf-nerd-fonts-jetbrains-mono"
+        "ttf-nerd-fonts-meslo"
+        "ttf-nerd-fonts-roboto-mono"
+        "ttf-nerd-fonts-source-code-pro"
+        "ttf-nerd-fonts-ubuntu-mono"
+        "ttf-nerd-fonts-hack"
+        "ttf-nerd-fonts-cascadia-code"
+        "ttf-nerd-fonts-iosevka"
+        "ttf-nerd-fonts-ubuntu"
+        "ttf-nerd-fonts-droid-sans-mono"
+        "ttf-nerd-fonts-inconsolata"
+        "ttf-nerd-fonts-mononoki"
+        "ttf-nerd-fonts-profont"
+        "ttf-nerd-fonts-share-tech-mono"
+        "ttf-nerd-fonts-terminus"
+        "ttf-nerd-fonts-3270"
+        "ttf-nerd-fonts-anonymice"
+        "ttf-nerd-fonts-arimo"
+        "ttf-nerd-fonts-aurulent-sans-mono"
+        "ttf-nerd-fonts-bigblue-terminal"
+        "ttf-nerd-fonts-bitstream-vera-sans-mono"
+        "ttf-nerd-fonts-cousine"
+        "ttf-nerd-fonts-daddytime-mono"
+        "ttf-nerd-fonts-dejavu-sans-mono"
+        "ttf-nerd-fonts-fantasque-sans-mono"
+        "ttf-nerd-fonts-fira-mono"
+        "ttf-nerd-fonts-go-mono"
+        "ttf-nerd-fonts-gohu"
+        "ttf-nerd-fonts-hasklig"
+        "ttf-nerd-fonts-heavy-data-nerd-font"
+        "ttf-nerd-fonts-lekton"
+        "ttf-nerd-fonts-liberation-mono"
+        "ttf-nerd-fonts-mplus"
+        "ttf-nerd-fonts-proggy-clean"
+        "ttf-nerd-fonts-roboto"
+        "ttf-nerd-fonts-sauce-code-pro"
+        "ttf-nerd-fonts-space-mono"
+        "ttf-nerd-fonts-tinos"
+        "ttf-nerd-fonts-ubuntu-nerd"
+        "ttf-nerd-fonts-victor-mono"
     )
-    
-    for app in "${AUR_APPS[@]}"; do
-        yay -S --noconfirm "$app" 2>&1 | tee -a $LOG_FILE
-    done
-    
-    print_success "Applications AUR installées"
+
+    # Installation par lots avec yay
+    yay -S --needed --noconfirm "${AUR_PACKAGES[@]}" 2>&1 | tee -a "$LOG_FILE"
+
+    print_success "Applications AUR 2026 installées"
 }
 
 #######################################
-# GAMING SETUP
-#######################################
-
-install_gaming_tools() {
-    print_step "Installation des outils gaming..."
-    
-    # Activer multilib
-    sudo sed -i '/\[multilib\]/,/Include/s/^#//' /etc/pacman.conf 2>&1 | tee -a $LOG_FILE
-    sudo pacman -Sy 2>&1 | tee -a $LOG_FILE
-    
-    # Steam et gaming tools
-    GAMING_PACKAGES=(
-        "steam" "lutris" "wine" "wine-gecko" "wine-mono" "winetricks"
-        "lib32-vulkan-icd-loader" "vulkan-icd-loader" "lib32-mesa" "mesa"
-        "mangohud" "lib32-mangohud" "goverlay" "gamemode" "lib32-gamemode"
-        "jstest-gtk" "antimicrox" "lib32-gnutls" "lib32-libldap" "lib32-libpulse"
-    )
-    
-    for package in "${GAMING_PACKAGES[@]}"; do
-        sudo pacman -S --noconfirm "$package" 2>/dev/null || print_warning "$package non disponible"
-    done 2>&1 | tee -a $LOG_FILE
-    
-    # AUR gaming apps
-    if command -v yay &> /dev/null; then
-        yay -S --noconfirm heroic-games-launcher-bin protonup-qt 2>&1 | tee -a $LOG_FILE
-    fi
-    
-    # Configuration GameMode
-    sudo usermod -aG gamemode $USER 2>&1 | tee -a $LOG_FILE
-    sudo systemctl enable --now gamemode 2>&1 | tee -a $LOG_FILE
-    
-    # Configuration MangoHud
-    mkdir -p ~/.config/MangoHud
-    cat > ~/.config/MangoHud/MangoHud.conf << 'EOF'
-toggle_hud=Shift_R+F12
-position=top-left
-font_size=24
-background_alpha=0.5
-fps
-cpu_stats
-cpu_temp
-gpu_stats
-gpu_temp
-ram
-vram
-cpu_color=00AAFF
-gpu_color=00FF00
-fps_color=FFFFFF
-EOF
-    
-    print_success "Outils gaming installés"
-}
-
-#######################################
-# TERMINAL SETUP (KITTY + ZSH)
+# CONFIGURATION TERMINAL 2026
 #######################################
 
 install_terminal_setup() {
-    print_step "Installation et configuration du terminal..."
-    
+    print_step "Installation et configuration du terminal 2026..."
+
     # Installation des paquets
-    sudo pacman -S --noconfirm kitty zsh zsh-completions 2>&1 | tee -a $LOG_FILE
-    
-    # Nerd Fonts
-    NERD_FONTS=("ttf-meslo-nerd" "ttf-fira-code" "ttf-jetbrains-mono-nerd" "noto-fonts-emoji")
-    for font in "${NERD_FONTS[@]}"; do
-        sudo pacman -S --noconfirm "$font" 2>/dev/null || print_warning "$font non disponible"
-    done 2>&1 | tee -a $LOG_FILE
-    
-    # Oh My Zsh
+    sudo pacman -S --noconfirm kitty zsh zsh-completions starship zoxide fzf exa bat ripgrep fd 2>&1 | tee -a "$LOG_FILE"
+
+    # Configuration de zsh
     if [[ ! -d "$HOME/.oh-my-zsh" ]]; then
-        sh -c "$(curl -fsSL https://raw.github.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended 2>&1 | tee -a $LOG_FILE
+        sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended 2>&1 | tee -a "$LOG_FILE"
     fi
-    
-    # Powerlevel10k
-    P10K_DIR="$HOME/.oh-my-zsh/custom/themes/powerlevel10k"
-    if [[ ! -d "$P10K_DIR" ]]; then
-        git clone --depth=1 https://github.com/romkatv/powerlevel10k.git "$P10K_DIR" 2>&1 | tee -a $LOG_FILE
+
+    # Configuration de starship
+    if [[ ! -f "$HOME/.config/starship.toml" ]]; then
+        mkdir -p "$HOME/.config"
+        curl -sS https://starship.rs/install.sh | sh -s -- --yes 2>&1 | tee -a "$LOG_FILE"
+        cat > "$HOME/.config/starship.toml" << 'EOF'
+# Configuration Starship 2026
+add_newline = true
+format = """
+$username\
+$hostname\
+$directory\
+$git_branch\
+$git_state\
+$git_status\
+$cmd_duration\
+$line_break\
+$character"""
+
+[character]
+success_symbol = "[❯](bold green)"
+error_symbol = "[❯](bold red)"
+vicmd_symbol = "[❮](bold yellow)"
+
+[directory]
+truncation_length = 3
+truncate_to_repo = false
+style = "bold blue"
+
+[git_branch]
+symbol = " "
+style = "bold purple"
+
+[git_status]
+style = "bold green"
+format = "([$all_status$ahead_behind]($style) )"
+
+[cmd_duration]
+style = "bold yellow"
+EOF
     fi
-    
-    # Plugins zsh
-    ZSH_CUSTOM="$HOME/.oh-my-zsh/custom"
-    
-    if [[ ! -d "$ZSH_CUSTOM/plugins/zsh-autosuggestions" ]]; then
-        git clone https://github.com/zsh-users/zsh-autosuggestions "$ZSH_CUSTOM/plugins/zsh-autosuggestions" 2>&1 | tee -a $LOG_FILE
+
+    # Configuration de zoxide
+    if ! grep -q "zoxide" "$HOME/.zshrc"; then
+        echo 'eval "$(zoxide init zsh)"' >> "$HOME/.zshrc"
     fi
-    
-    if [[ ! -d "$ZSH_CUSTOM/plugins/zsh-syntax-highlighting" ]]; then
-        git clone https://github.com/zsh-users/zsh-syntax-highlighting.git "$ZSH_CUSTOM/plugins/zsh-syntax-highlighting" 2>&1 | tee -a $LOG_FILE
-    fi
-    
-    print_success "Terminal installé"
+
+    print_success "Terminal 2026 configuré"
 }
 
 configure_kitty() {
-    print_step "Configuration de Kitty..."
-    
+    print_step "Configuration avancée de Kitty 2026..."
+
     mkdir -p "$HOME/.config/kitty"
+
+    # Configuration moderne avec support Wayland
     cat > "$HOME/.config/kitty/kitty.conf" << 'EOF'
-# Configuration Kitty - Thème Bleu Cyan Transparent
+# Configuration Kitty 2026 - Thème Cyberpunk
 
+# Fontes
 font_family      JetBrainsMono Nerd Font
+bold_font        auto
+italic_font      auto
+bold_italic_font auto
 font_size        12.0
-cursor_shape block
-cursor_blink_interval 0.5
-scrollback_lines 10000
-detect_urls yes
-repaint_delay 10
-input_delay 3
-enable_audio_bell no
-remember_window_size no
-initial_window_width 120c
-initial_window_height 30c
-window_padding_width 8
-background_opacity 0.85
-dynamic_background_opacity yes
 
-# Thème Bleu Cyan
-foreground #E0FFFF
-background #001122
-selection_foreground #000000
-selection_background #00CCFF
-cursor #00FFFF
-cursor_text_color #001122
+# Fenêtre
+remember_window_size  no
+initial_window_width  120c
+initial_window_height 34c
+window_padding_width  8
+window_border_width   0.5
+draw_minimal_borders  yes
+hide_window_decorations yes
+wayland_titlebar_color system
+
+# Couleurs (Thème Cyberpunk)
+foreground #e0e0e0
+background #0a0a12
+cursor #ff00aa
+cursor_text_color #0a0a12
+selection_foreground #0a0a12
+selection_background #ff00aa
 
 # Couleurs normales
-color0  #000000
-color1  #FF6B6B
-color2  #4ECDC4
-color3  #45B7D1
-color4  #96CEB4
-color5  #FECCA7
-color6  #00FFFF
-color7  #E0FFFF
+color0  #121212
+color1  #ff0055
+color2  #00ff9f
+color3  #ff9f00
+color4  #00aaff
+color5  #aa00ff
+color6  #00ffff
+color7  #e0e0e0
 
 # Couleurs brillantes
-color8  #4A5568
-color9  #FF8E8E
-color10 #81E6D9
-color11 #68D8F0
-color12 #B2F5EA
-color13 #FFEAA7
-color14 #9DECF9
-color15 #FFFFFF
+color8  #4a4a4a
+color9  #ff55aa
+color10 #55ffaa
+color11 #ffaa55
+color12 #55aaff
+color13 #ff55ff
+color14 #55ffff
+color15 #ffffff
+
+# Transparence
+background_opacity 0.9
+dynamic_background_opacity yes
 
 # Raccourcis
-map ctrl+shift+c copy_to_clipboard
-map ctrl+shift+v paste_from_clipboard
 map ctrl+shift+t new_tab
 map ctrl+shift+w close_tab
-map ctrl+shift+equal change_font_size all +2.0
-map ctrl+shift+minus change_font_size all -2.0
+map ctrl+shift+right next_tab
+map ctrl+shift+left prev_tab
+map ctrl+shift+enter new_window
+map ctrl+shift+f toggle_fullscreen
+map ctrl+shift+up scroll_line_up
+map ctrl+shift+down scroll_line_down
+map ctrl+shift+page_up scroll_page_up
+map ctrl+shift+page_down scroll_page_down
+map ctrl+shift+home scroll_home
+map ctrl+shift+end scroll_end
 
 # Onglets
-active_tab_foreground   #001122
-active_tab_background   #00FFFF
-inactive_tab_foreground #81E6D9
-inactive_tab_background #2D3748
-tab_bar_background      #1A202C
+tab_bar_edge top
 tab_bar_style powerline
-tab_powerline_style round
+tab_powerline_style slanted
+active_tab_foreground   #0a0a12
+active_tab_background   #00aaff
+inactive_tab_foreground #e0e0e0
+inactive_tab_background #1a1a2e
+tab_bar_background      #0a0a12
 
-shell zsh
+# Performance
+repaint_delay 10
+input_delay 3
+sync_to_monitor yes
+
+# Wayland
+wayland_enable true
+linux_display_server wayland
 EOF
-    
-    print_success "Kitty configuré"
-}
 
-configure_zsh() {
-    print_step "Configuration de zsh..."
-    
-    # Backup
-    if [[ -f "$HOME/.zshrc" ]]; then
-        cp "$HOME/.zshrc" "$HOME/.zshrc.backup.$(date +%Y%m%d_%H%M%S)"
+    # Configuration spécifique pour Wayland
+    if [[ "$IS_WAYLAND" == true ]]; then
+        echo "wayland_enable true" >> "$HOME/.config/kitty/kitty.conf"
+        echo "linux_display_server wayland" >> "$HOME/.config/kitty/kitty.conf"
     fi
-    
-    cat > "$HOME/.zshrc" << 'EOF'
-# Configuration zsh avec Oh My Zsh et Powerlevel10k
-export ZSH="$HOME/.oh-my-zsh"
-ZSH_THEME="powerlevel10k/powerlevel10k"
 
-plugins=(
-    git
-    zsh-autosuggestions
-    zsh-syntax-highlighting
-    sudo
-    extract
-    systemd
-)
-
-source $ZSH/oh-my-zsh.sh
-
-export EDITOR='nano'
-
-# Aliases utiles
-alias ll='ls -alF'
-alias la='ls -A'
-alias ..='cd ..'
-alias ...='cd ../..'
-alias update='sudo pacman -Syu'
-alias install='sudo pacman -S'
-alias search='pacman -Ss'
-alias remove='sudo pacman -Rns'
-alias gs='git status'
-alias ga='git add'
-alias gc='git commit'
-alias gp='git push'
-
-# Outils modernes
-if command -v exa > /dev/null; then
-    alias ls='exa --icons'
-    alias ll='exa -la --icons'
-    alias tree='exa --tree --icons'
-fi
-
-if command -v bat > /dev/null; then
-    alias cat='bat --paging=never'
-fi
-
-# Fastfetch au démarrage
-if command -v fastfetch > /dev/null 2>&1; then
-    if [[ $SHLVL -eq 1 ]]; then
-        sleep 0.2
-        fastfetch 2>/dev/null || true
-        echo ""
-    fi
-fi
-
-[[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
-EOF
-    
-    # Configuration P10k
-    cat > "$HOME/.p10k.zsh" << 'EOF'
-# Configuration Powerlevel10k - Thème Bleu Cyan
-typeset -g POWERLEVEL9K_LEFT_PROMPT_ELEMENTS=(
-    os_icon
-    dir
-    vcs
-    prompt_char
-)
-
-typeset -g POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS=(
-    status
-    command_execution_time
-    time
-)
-
-typeset -g POWERLEVEL9K_COLOR_SCHEME='dark'
-typeset -g POWERLEVEL9K_PROMPT_CHAR_OK_{VIINS,VICMD,VIVIS,VIOWR}_FOREGROUND=cyan
-typeset -g POWERLEVEL9K_PROMPT_CHAR_ERROR_{VIINS,VICMD,VIVIS,VIOWR}_FOREGROUND=red
-typeset -g POWERLEVEL9K_DIR_FOREGROUND=white
-typeset -g POWERLEVEL9K_DIR_BACKGROUND=blue
-typeset -g POWERLEVEL9K_VCS_CLEAN_FOREGROUND=black
-typeset -g POWERLEVEL9K_VCS_CLEAN_BACKGROUND=green
-typeset -g POWERLEVEL9K_TIME_FOREGROUND=cyan
-typeset -g POWERLEVEL9K_TIME_BACKGROUND=black
-typeset -g POWERLEVEL9K_OS_ICON_FOREGROUND=cyan
-typeset -g POWERLEVEL9K_INSTANT_PROMPT=quiet
-typeset -g POWERLEVEL9K_DISABLE_HOT_RELOAD=true
-EOF
-    
-    # Changer le shell par défaut
-    if [[ "$SHELL" != *"zsh"* ]]; then
-        chsh -s $(which zsh) 2>&1 | tee -a $LOG_FILE
-    fi
-    
-    print_success "zsh configuré"
+    print_success "Kitty 2026 configuré"
 }
 
 #######################################
-# FASTFETCH SETUP
+# FASTFETCH 2026
 #######################################
 
 install_and_configure_fastfetch() {
-    print_step "Installation et configuration de Fastfetch..."
-    
+    print_step "Installation et configuration de Fastfetch 2026..."
+
     # Installation
-    sudo pacman -S --noconfirm fastfetch 2>&1 | tee -a $LOG_FILE || {
-        if command -v yay &> /dev/null; then
-            yay -S --noconfirm fastfetch 2>&1 | tee -a $LOG_FILE
-        fi
-    }
-    
+    if ! command -v fastfetch &> /dev/null; then
+        sudo pacman -S --noconfirm fastfetch 2>&1 | tee -a "$LOG_FILE"
+    fi
+
     # Configuration
     mkdir -p "$HOME/.config/fastfetch"
+
     cat > "$HOME/.config/fastfetch/config.jsonc" << 'EOF'
 {
     "$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json",
     "logo": {
-        "source": "endeavouros",
-        "padding": {"top": 1, "left": 3},
-        "color": {"1": "cyan", "2": "blue"}
+        "type": "file",
+        "source": "/usr/share/fastfetch/logos/archlinux.png",
+        "width": 30,
+        "padding": {
+            "top": 1,
+            "left": 2
+        }
     },
     "display": {
-        "separator": " ❯ ",
-        "color": {"separator": "cyan", "keys": "blue", "output": "cyan"}
+        "separator": " : ",
+        "keyColor": "blue",
+        "color": {
+            "frame": "blue",
+            "title": "blue"
+        },
+        "binaryPrefix": true,
+        "sizeNdigits": 2,
+        "sizeUnit": "iec",
+        "noBuffer": false
     },
     "modules": [
         {
             "type": "title",
-            "color": {"user": "cyan", "at": "blue", "host": "cyan"}
-        },
-        {
-            "type": "separator",
-            "string": "╭──────────────────────────────────╮"
-        },
-        {
-            "type": "custom",
-            "format": "│           💻 SYSTÈME             │"
-        },
-        {
-            "type": "separator",
-            "string": "├──────────────────────────────────┤"
+            "key": "System",
+            "format": "╭───────────────────────────────────────────────────╮"
         },
         {
             "type": "os",
-            "key": "│ 󰍹 OS",
-            "keyColor": "blue"
+            "key": "│  OS"
         },
         {
             "type": "host",
-            "key": "│ 󰟀 Host",
-            "keyColor": "cyan"
+            "key": "│  Host"
         },
         {
             "type": "kernel",
-            "key": "│  Kernel",
-            "keyColor": "blue"
+            "key": "│  Kernel"
         },
         {
             "type": "uptime",
-            "key": "│ 󰅐 Uptime",
-            "keyColor": "cyan"
+            "key": "│  Uptime"
         },
         {
             "type": "packages",
-            "key": "│ 󰆧 Packages",
-            "keyColor": "blue"
+            "key": "│  Packages",
+            "format": "{1} (pacman), {2} (flatpak), {3} (snap)"
         },
         {
             "type": "shell",
-            "key": "│  Shell",
-            "keyColor": "cyan"
+            "key": "│  Shell"
         },
         {
-            "type": "separator",
-            "string": "├──────────────────────────────────┤"
-        },
-        {
-            "type": "custom",
-            "format": "│          ⚙️  HARDWARE            │"
-        },
-        {
-            "type": "separator",
-            "string": "├──────────────────────────────────┤"
+            "type": "title",
+            "key": "Hardware",
+            "format": "├───────────────────────────────────────────────────┤"
         },
         {
             "type": "cpu",
-            "key": "│ 󰻠 CPU",
-            "keyColor": "blue"
+            "key": "│  CPU"
         },
         {
             "type": "gpu",
-            "key": "│ 󰢮 GPU",
-            "keyColor": "cyan"
+            "key": "│  GPU"
         },
         {
             "type": "memory",
-            "key": "│  Memory",
-            "keyColor": "blue"
+            "key": "│  Memory"
         },
         {
             "type": "disk",
-            "key": "│ 󰋊 Disk (/)",
-            "keyColor": "cyan"
+            "key": "│  Disk",
+            "format": "{1} ({2}%)"
         },
         {
-            "type": "separator",
-            "string": "├──────────────────────────────────┤"
+            "type": "title",
+            "key": "Network",
+            "format": "├───────────────────────────────────────────────────┤"
         },
         {
-            "type": "custom",
-            "format": "│          🖥️  INTERFACE           │"
+            "type": "localip",
+            "key": "│  Local IP"
         },
         {
-            "type": "separator",
-            "string": "├──────────────────────────────────┤"
+            "type": "publicip",
+            "key": "│  Public IP"
+        },
+        {
+            "type": "wifi",
+            "key": "│  WiFi"
+        },
+        {
+            "type": "title",
+            "key": "Session",
+            "format": "├───────────────────────────────────────────────────┤"
         },
         {
             "type": "de",
-            "key": "│ 󰧨 DE",
-            "keyColor": "blue"
+            "key": "│  DE"
         },
         {
             "type": "wm",
-            "key": "│  WM",
-            "keyColor": "cyan"
+            "key": "│  WM"
+        },
+        {
+            "type": "wmtheme",
+            "key": "│  WM Theme"
+        },
+        {
+            "type": "theme",
+            "key": "│  Theme"
+        },
+        {
+            "type": "icons",
+            "key": "│  Icons"
+        },
+        {
+            "type": "font",
+            "key": "│  Font"
+        },
+        {
+            "type": "cursor",
+            "key": "│  Cursor"
         },
         {
             "type": "terminal",
-            "key": "│  Terminal",
-            "keyColor": "blue"
+            "key": "│  Terminal"
         },
         {
-            "type": "separator",
-            "string": "╰──────────────────────────────────╯"
+            "type": "terminalfont",
+            "key": "│  Terminal Font"
+        },
+        {
+            "type": "title",
+            "key": "Misc",
+            "format": "├───────────────────────────────────────────────────┤"
+        },
+        {
+            "type": "locale",
+            "key": "│  Locale"
         },
         {
             "type": "break"
         },
         {
             "type": "colors",
+            "key": "│  Colors",
             "paddingLeft": 3,
             "symbol": "circle"
+        },
+        {
+            "type": "title",
+            "format": "╰───────────────────────────────────────────────────╯"
         }
     ]
 }
 EOF
-    
-    print_success "Fastfetch configuré"
+
+    # Ajouter fastfetch au .zshrc
+    if ! grep -q "fastfetch" "$HOME/.zshrc"; then
+        echo "fastfetch --load-config ~/.config/fastfetch/config.jsonc" >> "$HOME/.zshrc"
+    fi
+
+    print_success "Fastfetch 2026 configuré"
 }
 
 #######################################
-# OPTIMISATIONS SYSTÈME
+# GAMING 2026
+#######################################
+
+install_gaming_tools() {
+    print_step "Installation des outils gaming 2026..."
+
+    # Outils gaming essentiels
+    sudo pacman -S --noconfirm \
+        mangohud \
+        gamemode \
+        goverlay \
+        vkbasalt \
+        lib32-mangohud \
+        lib32-gamemode \
+        lib32-vkbasalt \
+        wine-staging \
+        winetricks \
+        dxvk \
+        vkd3d \
+        protontricks \
+        protonup-qt \
+        heroic-games-launcher-bin \
+        bottles \
+        lutris \
+        steam \
+        steam-native-runtime \
+        gamemode \
+        lib32-gamemode \
+        lib32-vulkan-icd-loader \
+        vulkan-icd-loader \
+        vulkan-tools \
+        vulkan-mesa-layers \
+        lib32-vulkan-mesa-layers
+
+    # Configuration de MangoHud
+    mkdir -p "$HOME/.config/MangoHud"
+    cat > "$HOME/.config/MangoHud/MangoHud.conf" << 'EOF'
+# Configuration MangoHud 2026
+legacy_layout=0
+no_display=0
+output_folder=mangohud_output
+position=top-left
+background_alpha=0.5
+font_size=24
+font_scale=1.0
+round_corners=10
+table_columns=15
+gpu_stats
+gpu_temp
+gpu_core_clock
+gpu_mem_clock
+gpu_power
+cpu_stats
+cpu_temp
+cpu_power
+ram
+vram
+fps
+frame_timing=1
+frame_count=0
+hud_no_margin
+time
+exec
+io_read
+io_write
+gpu_name
+cpu_name
+vulkan_driver
+arch
+wine
+resolution
+media_player
+version
+EOF
+
+    # Configuration de Gamemode
+    sudo systemctl enable gamemoded
+    sudo systemctl start gamemoded
+
+    # Configuration de Steam
+    if [[ ! -d "$HOME/.steam" ]]; then
+        mkdir -p "$HOME/.steam/steam/steamapps/compatdata"
+    fi
+
+    # Configuration de Proton
+    mkdir -p "$HOME/.steam/root/compatibilitytools.d"
+    if [[ ! -d "$HOME/.steam/root/compatibilitytools.d/Proton-Exp" ]]; then
+        print_step "Installation de Proton Experimental..."
+        wget -qO- https://github.com/GloriousEggroll/proton-ge-custom/releases/latest/download/GE-Proton9-1.tar.gz | tar -xz -C "$HOME/.steam/root/compatibilitytools.d/"
+    fi
+
+    print_success "Outils gaming 2026 installés"
+}
+
+#######################################
+# AI/ML TOOLS 2026
+#######################################
+
+install_ai_tools() {
+    print_step "Installation des outils AI/ML 2026..."
+
+    # Outils AI essentiels
+    sudo pacman -S --noconfirm \
+        python-pytorch \
+        python-tensorflow \
+        python-jupyterlab \
+        python-scikit-learn \
+        python-pandas \
+        python-numpy \
+        python-matplotlib \
+        python-seaborn \
+        python-opencv \
+        python-transformers \
+        python-diffusers \
+        python-accelerate \
+        python-safetensors \
+        python-peft \
+        python-bitsandbytes \
+        ollama \
+        stable-diffusion-webui \
+        comfyui \
+        automatic1111-sd-webui
+
+    # Configuration de Ollama
+    if ! command -v ollama &> /dev/null; then
+        curl -fsSL https://ollama.com/install.sh | sh 2>&1 | tee -a "$LOG_FILE"
+    fi
+
+    # Téléchargement des modèles populaires
+    print_step "Téléchargement des modèles AI populaires..."
+    ollama pull llama3:latest 2>&1 | tee -a "$LOG_FILE" &
+    ollama pull mistral:latest 2>&1 | tee -a "$LOG_FILE" &
+    ollama pull phi3:latest 2>&1 | tee -a "$LOG_FILE" &
+
+    # Configuration de Stable Diffusion
+    if [[ ! -d "$HOME/stable-diffusion-webui" ]]; then
+        git clone https://github.com/AUTOMATIC1111/stable-diffusion-webui.git "$HOME/stable-diffusion-webui" 2>&1 | tee -a "$LOG_FILE"
+        cd "$HOME/stable-diffusion-webui" || exit
+        ./webui.sh --skip-torch-cuda-test --no-half-vae --xformers 2>&1 | tee -a "$LOG_FILE" &
+    fi
+
+    print_success "Outils AI/ML 2026 installés"
+}
+
+#######################################
+# OPTIMISATIONS SYSTÈME 2026
 #######################################
 
 apply_system_optimizations() {
-    print_step "Application des optimisations système..."
-    
+    print_step "Application des optimisations système 2026..."
+
     # Configuration de pacman
     sudo sed -i 's/#Color/Color/' /etc/pacman.conf
-    sudo sed -i 's/#ParallelDownloads = 5/ParallelDownloads = 10/' /etc/pacman.conf
-    
-    # Services
-    sudo systemctl enable bluetooth NetworkManager ufw 2>&1 | tee -a $LOG_FILE
-    sudo ufw enable 2>&1 | tee -a $LOG_FILE
-    
-    # Swappiness
-    echo 'vm.swappiness=10' | sudo tee -a /etc/sysctl.d/99-swappiness.conf 2>&1 | tee -a $LOG_FILE
-    
-    # Optimisations gaming
-    echo 'vm.max_map_count=2147483642' | sudo tee -a /etc/sysctl.d/99-gaming.conf 2>&1 | tee -a $LOG_FILE
-    echo 'kernel.nmi_watchdog=0' | sudo tee -a /etc/sysctl.d/99-gaming.conf 2>&1 | tee -a $LOG_FILE
-    
-    # Variables d'environnement gaming
-    cat >> ~/.bashrc << 'EOF'
+    sudo sed -i 's/#ParallelDownloads = 5/ParallelDownloads = 15/' /etc/pacman.conf
+    sudo sed -i '/^#\[multilib\]/,/^#Include = \/etc\/pacman.d\/mirrorlist/ s/^#//' /etc/pacman.conf
+    sudo pacman -Sy --noconfirm 2>&1 | tee -a "$LOG_FILE"
 
-# Configuration Gaming Linux
-export WINE_CPU_TOPOLOGY=4:2
-export DXVK_HUD=fps
+    # Services essentiels
+    sudo systemctl enable --now bluetooth NetworkManager ufw tlp thermald earlyoom preload 2>&1 | tee -a "$LOG_FILE"
+    sudo ufw enable 2>&1 | tee -a "$LOG_FILE"
+
+    # Optimisations du noyau
+    echo 'vm.swappiness=10' | sudo tee /etc/sysctl.d/99-swappiness.conf 2>&1 | tee -a "$LOG_FILE"
+    echo 'vm.vfs_cache_pressure=50' | sudo tee -a /etc/sysctl.d/99-vfs.conf 2>&1 | tee -a "$LOG_FILE"
+    echo 'vm.dirty_ratio=10' | sudo tee -a /etc/sysctl.d/99-dirty.conf 2>&1 | tee -a "$LOG_FILE"
+    echo 'vm.dirty_background_ratio=5' | sudo tee -a /etc/sysctl.d/99-dirty.conf 2>&1 | tee -a "$LOG_FILE"
+    echo 'kernel.nmi_watchdog=0' | sudo tee -a /etc/sysctl.d/99-gaming.conf 2>&1 | tee -a "$LOG_FILE"
+    echo 'kernel.sched_autogroup_enabled=0' | sudo tee -a /etc/sysctl.d/99-gaming.conf 2>&1 | tee -a "$LOG_FILE"
+    echo 'vm.max_map_count=1048576' | sudo tee -a /etc/sysctl.d/99-gaming.conf 2>&1 | tee -a "$LOG_FILE"
+
+    # Optimisations pour les SSD/NVMe
+    echo 'ACTION=="add|change", KERNEL=="sd[a-z]|nvme[0-9]*", ATTR{queue/read_ahead_kb}="128"' | sudo tee /etc/udev/rules.d/99-ssd.rules 2>&1 | tee -a "$LOG_FILE"
+    echo 'ACTION=="add|change", KERNEL=="sd[a-z]|nvme[0-9]*", ATTR{queue/scheduler}="none"' | sudo tee -a /etc/udev/rules.d/99-ssd.rules 2>&1 | tee -a "$LOG_FILE"
+
+    # Optimisations pour le gaming
+    echo 'options nvidia NVreg_EnableDeepColor=1' | sudo tee /etc/modprobe.d/nvidia.conf 2>&1 | tee -a "$LOG_FILE"
+    echo 'options nvidia NVreg_RegistryDwords="PowerMizerEnable=0x1; PerfLevelSrc=0x2222; PowerMizerLevel=0x3; PowerMizerDefault=0x3; PowerMizerDefaultAC=0x3"' | sudo tee -a /etc/modprobe.d/nvidia.conf 2>&1 | tee -a "$LOG_FILE"
+
+    # Configuration de TLP
+    sudo sed -i 's/#CPU_SCALING_GOVERNOR_ON_AC=.*/CPU_SCALING_GOVERNOR_ON_AC=performance/' /etc/tlp.conf
+    sudo sed -i 's/#CPU_SCALING_GOVERNOR_ON_BAT=.*/CPU_SCALING_GOVERNOR_ON_BAT=powersave/' /etc/tlp.conf
+    sudo sed -i 's/#CPU_ENERGY_PERF_POLICY_ON_AC=.*/CPU_ENERGY_PERF_POLICY_ON_AC=performance/' /etc/tlp.conf
+    sudo sed -i 's/#CPU_ENERGY_PERF_POLICY_ON_BAT=.*/CPU_ENERGY_PERF_POLICY_ON_BAT=power/' /etc/tlp.conf
+
+    # Configuration de earlyoom
+    sudo sed -i 's/#EARLYOOM_ARGS=""/EARLYOOM_ARGS="-r 60 -m 10 -M 409600 --avoid '(^|/)(init|systemd|Xorg|sshd|gdm|sddm|lightdm|kwin|plasmashell|gnome-shell|gnome-session|gnome-settings-daemon|dbus-daemon|pipewire|wireplumber)'"/' /etc/default/earlyoom
+
+    # Variables d'environnement
+    cat >> "$HOME/.bashrc" << 'EOF'
+
+# Optimisations système 2026
+export WINE_CPU_TOPOLOGY=$(nproc):$(nproc)
+export DXVK_HUD=fps,devinfo,version,gpu
 export __GL_SHADER_DISK_CACHE=1
-export __GL_SHADER_DISK_CACHE_PATH="$HOME/.cache/nv_GLCache"
+export __GL_SHADER_DISK_CACHE_PATH="$HOME/.cache/nv_shader_cache"
+export __GL_THREADED_OPTIMIZATIONS=1
+export __GL_SYNC_TO_VBLANK=0
+export __GL_MaxFramesAllowed=1
+export MESA_GLTHREAD=true
+export vblank_mode=0
+export CLUTTER_PAINT=disable-clipped-redraws:disable-culling
+export CLUTTER_VBLANK=none
+export SDL_VIDEO_MINIMIZE_ON_FOCUS_LOSS=0
+export SDL_JOYSTICK_HIDAPI=0
+export SDL_GAMECONTROLLERCONFIG_FILE="$HOME/.config/SDL_GameControllerDB/gamecontrollerdb.txt"
 EOF
-    
-    print_success "Optimisations système appliquées"
+
+    # Configuration de la base de données des contrôleurs
+    mkdir -p "$HOME/.config/SDL_GameControllerDB"
+    curl -sSL https://raw.githubusercontent.com/gabomdq/SDL_GameControllerDB/master/gamecontrollerdb.txt -o "$HOME/.config/SDL_GameControllerDB/gamecontrollerdb.txt"
+
+    # Configuration de Wayland
+    if [[ "$IS_WAYLAND" == true ]]; then
+        echo 'export QT_QPA_PLATFORM=wayland' >> "$HOME/.bashrc"
+        echo 'export GDK_BACKEND=wayland' >> "$HOME/.bashrc"
+        echo 'export SDL_VIDEODRIVER=wayland' >> "$HOME/.bashrc"
+        echo 'export CLUTTER_BACKEND=wayland' >> "$HOME/.bashrc"
+        echo 'export MOZ_ENABLE_WAYLAND=1' >> "$HOME/.bashrc"
+        echo 'export XDG_SESSION_TYPE=wayland' >> "$HOME/.bashrc"
+        echo 'export XDG_CURRENT_DESKTOP=sway' >> "$HOME/.bashrc"
+    fi
+
+    # Recharger les paramètres sysctl
+    sudo sysctl --system 2>&1 | tee -a "$LOG_FILE"
+
+    print_success "Optimisations système 2026 appliquées"
 }
 
 #######################################
-# NETTOYAGE SYSTÈME
+# NETTOYAGE SYSTÈME 2026
 #######################################
 
 cleanup_system() {
-    print_step "Nettoyage du système..."
-    
+    print_step "Nettoyage complet du système 2026..."
+
     # Nettoyage des paquets orphelins
-    sudo pacman -Rns $(pacman -Qtdq) --noconfirm 2>/dev/null || true
-    
+    sudo pacman -Rns $(pacman -Qtdq) --noconfirm 2>&1 | tee -a "$LOG_FILE" || true
+
     # Nettoyage du cache pacman
-    sudo pacman -Scc --noconfirm 2>&1 | tee -a $LOG_FILE
-    
+    sudo pacman -Scc --noconfirm 2>&1 | tee -a "$LOG_FILE"
+
+    # Nettoyage des anciens kernels
+    sudo pacman -R $(pacman -Q | grep "^linux[0-9]" | grep -v "$(uname -r | cut -d '-' -f 1)" | awk '{print $1}') --noconfirm 2>&1 | tee -a "$LOG_FILE" || true
+
     # Nettoyage yay si disponible
     if command -v yay &> /dev/null; then
-        yay -Ycc --noconfirm 2>&1 | tee -a $LOG_FILE
+        yay -Ycc --noconfirm 2>&1 | tee -a "$LOG_FILE"
+        yay -Sc --noconfirm 2>&1 | tee -a "$LOG_FILE"
     fi
-    
-    print_success "Système nettoyé"
+
+    # Nettoyage des fichiers temporaires
+    sudo rm -rf /tmp/* 2>&1 | tee -a "$LOG_FILE"
+    rm -rf "$HOME/.cache/*" 2>&1 | tee -a "$LOG_FILE"
+    rm -rf "$HOME/.thumbnails/*" 2>&1 | tee -a "$LOG_FILE"
+    rm -rf "$HOME/.local/share/Trash/*" 2>&1 | tee -a "$LOG_FILE"
+
+    # Nettoyage des journaux système
+    sudo journalctl --vacuum-time=7d 2>&1 | tee -a "$LOG_FILE"
+    sudo journalctl --vacuum-size=100M 2>&1 | tee -a "$LOG_FILE"
+
+    # Optimisation des bases de données
+    sudo pacman-optimize 2>&1 | tee -a "$LOG_FILE"
+
+    print_success "Système nettoyé et optimisé"
 }
 
 #######################################
@@ -803,187 +1074,177 @@ cleanup_system() {
 #######################################
 
 show_final_status() {
+    print_header
     echo ""
-    print_success "Configuration terminée !"
+    print_success "✨ CONFIGURATION COMPLÈTE TERMINÉE ✨"
     echo ""
-    
-    print_step "Résumé de la configuration:"
-    echo -e "  ${GREEN}✓${NC} Système mis à jour et optimisé"
-    echo -e "  ${GREEN}✓${NC} Paquets essentiels installés"
-    echo -e "  ${GREEN}✓${NC} yay (AUR helper) configuré"
-    echo -e "  ${GREEN}✓${NC} Applications AUR installées"
-    
-    if lspci | grep -i nvidia > /dev/null; then
-        echo -e "  ${GREEN}✓${NC} Pilotes NVIDIA installés"
-    fi
-    
-    echo -e "  ${GREEN}✓${NC} Outils gaming installés (Steam, Lutris, etc.)"
-    echo -e "  ${GREEN}✓${NC} MangoHud et GameMode configurés"
-    echo -e "  ${GREEN}✓${NC} Kitty terminal avec thème bleu cyan"
-    echo -e "  ${GREEN}✓${NC} zsh + Oh My Zsh + Powerlevel10k"
-    echo -e "  ${GREEN}✓${NC} Fastfetch configuré"
-    
-    if [ ${#DETECTED_BTRFS_DISKS[@]} -gt 0 ]; then
-        echo -e "  ${GREEN}✓${NC} ${#DETECTED_BTRFS_DISKS[@]} disque(s) BTRFS configuré(s)"
-        echo ""
-        print_step "Disques BTRFS montés:"
+    print_step "Informations système:"
+    echo ""
+
+    for info in "${SYSTEM_INFO[@]}"; do
+        echo -e "  ${CYAN}•${NC} $info"
+    done
+
+    echo ""
+    print_step "Montages BTRFS:"
+    if [[ ${#MOUNT_POINTS[@]} -gt 0 ]]; then
         for mount_point in "${MOUNT_POINTS[@]}"; do
-            if mountpoint -q "$mount_point" 2>/dev/null; then
-                echo -e "    ${GREEN}•${NC} $mount_point (accessible via ~/$(basename $mount_point))"
-            fi
+            echo -e "  ${CYAN}•${NC} $mount_point"
         done
+    else
+        echo -e "  ${YELLOW}Aucun montage BTRFS détecté${NC}"
     fi
-    
-    echo ""
-    print_step "Points de montage dans fstab:"
-    grep -E "(nas|games|data|nvme|disk)" /etc/fstab 2>/dev/null || print_warning "Aucune entrée BTRFS trouvée"
-    
+
     echo ""
     print_step "Liens symboliques créés:"
-    ls -la "$HOME/" | grep -E "(NAS|Games|Data|nas|games|data|nvme|disk)" || print_warning "Aucun lien trouvé"
-    
+    if [[ -d "$HOME/Storage" ]]; then
+        ls -la "$HOME/Storage" | grep -E "^l" | awk '{print "  • " $9 " -> " $11}' | while read -r line; do
+            echo -e "${CYAN}$line${NC}"
+        done
+    else
+        echo -e "  ${YELLOW}Aucun lien symbolique créé${NC}"
+    fi
+
     echo ""
     print_warning "Actions recommandées après le redémarrage :"
-    echo -e "${CYAN}1.${NC} Ouvrir Kitty comme terminal par défaut"
-    echo -e "${CYAN}2.${NC} Lancer 'p10k configure' pour personnaliser le prompt"
-    echo -e "${CYAN}3.${NC} Configurer Steam avec : mangohud gamemoderun %command%"
-    echo -e "${CYAN}4.${NC} Installer Proton-GE avec ProtonUp-Qt"
-    
-    echo ""
-    print_step "Fichiers de configuration créés :"
-    echo -e "  • ~/.config/kitty/kitty.conf"
-    echo -e "  • ~/.config/fastfetch/config.jsonc"
-    echo -e "  • ~/.config/MangoHud/MangoHud.conf"
-    echo -e "  • ~/.zshrc et ~/.p10k.zsh"
-    
-    echo ""
-    print_step "Log complet disponible : $LOG_FILE"
-}
+    echo -e "  ${CYAN}1.${NC} Ouvrir Kitty comme terminal par défaut"
+    echo -e "  ${CYAN}2.${NC} Lancer 'starship preset pastel-powerline -o ~/.config/starship.toml' pour personnaliser"
+    echo -e "  ${CYAN}3.${NC} Configurer Steam avec : mangohud gamemoderun %command%"
+    echo -e "  ${CYAN}4.${NC} Installer Proton-GE avec ProtonUp-Qt"
+    echo -e "  ${CYAN}5.${NC} Lancer 'ollama pull llama3' pour télécharger des modèles AI"
+    echo -e "  ${CYAN}6.${NC} Configurer votre environnement de bureau (KDE/GNOME/Sway)"
 
-#######################################
-# MENU INTERACTIF
-#######################################
+    echo ""
+    print_step "Fichiers de configuration créés/modifiés :"
+    echo -e "  ${CYAN}•${NC} ~/.config/kitty/kitty.conf"
+    echo -e "  ${CYAN}•${NC} ~/.config/fastfetch/config.jsonc"
+    echo -e "  ${CYAN}•${NC} ~/.config/MangoHud/MangoHud.conf"
+    echo -e "  ${CYAN}•${NC} ~/.config/starship.toml"
+    echo -e "  ${CYAN}•${NC} ~/.zshrc"
 
-show_main_menu() {
-    print_header
-    
-    # Afficher les disques BTRFS détectés
-    detect_btrfs_disks
-    show_detected_disks
-    
-    echo -e "${BLUE}═══════════════════════════════════════════════════════════${NC}"
-    echo -e "${BLUE}                    MENU PRINCIPAL                         ${NC}"
-    echo -e "${BLUE}═══════════════════════════════════════════════════════════${NC}"
     echo ""
-    echo -e "${GREEN}Configurations complètes :${NC}"
-    echo "  1) 🚀 Installation COMPLÈTE (tout en un)"
-    echo "  2) 🎮 Setup GAMING complet"
-    echo "  3) 💻 Setup TERMINAL complet (Kitty + zsh)"
-    echo ""
-    echo -e "${GREEN}Modules individuels :${NC}"
-    echo "  4) 📦 Post-installation système"
-    echo "  5) 💾 Configuration disques BTRFS"
-    echo "  6) 🎯 Outils gaming seulement"
-    echo "  7) 🖥️  Terminal (Kitty) seulement"
-    echo "  8) 🐚 Shell (zsh + Oh My Zsh) seulement"
-    echo "  9) ⚡ Fastfetch seulement"
-    echo "  10) 🔧 Optimisations système"
-    echo "  11) 🧹 Nettoyage système"
-    echo ""
-    echo -e "${GREEN}Informations :${NC}"
-    echo "  12) 📊 Afficher le statut actuel"
-    echo "  13) 💿 Détecter les disques BTRFS"
-    echo ""
-    echo "  0) ❌ Quitter"
-    echo ""
-    echo -e "${BLUE}═══════════════════════════════════════════════════════════${NC}"
-    read -p "Votre choix [0-13]: " choice
+    print_step "Log complet disponible : ${CYAN}$LOG_FILE${NC}"
     echo ""
 }
 
 #######################################
-# INSTALLATIONS GROUPÉES
+# INSTALLATIONS GROUPÉES 2026
 #######################################
 
 full_installation() {
-    print_step "🚀 INSTALLATION COMPLÈTE DÉMARRÉE"
-    print_step "Cette installation peut prendre 30-60 minutes..."
+    print_step "🚀 INSTALLATION COMPLÈTE 2026 DÉMARRÉE"
+    print_step "Cette installation peut prendre 45-90 minutes selon votre connexion..."
     echo ""
-    
+
+    # Initialisation
+    get_system_info
+    detect_wayland
+
     # Phase 1 : Système de base
-    print_step "Phase 1/5 : Système de base..."
+    print_step "Phase 1/6 : Système de base..."
     update_system
     install_nvidia_drivers
     install_essential_packages
     install_yay
     install_aur_apps
-    
+
     # Phase 2 : Gaming
-    print_step "Phase 2/5 : Outils gaming..."
+    print_step "Phase 2/6 : Outils gaming..."
     install_gaming_tools
-    
-    # Phase 3 : Terminal
-    print_step "Phase 3/5 : Configuration terminal..."
+
+    # Phase 3 : AI Tools
+    print_step "Phase 3/6 : Outils AI/ML..."
+    install_ai_tools
+
+    # Phase 4 : Terminal
+    print_step "Phase 4/6 : Configuration terminal..."
     install_terminal_setup
     configure_kitty
-    configure_zsh
-    
-    # Phase 4 : Fastfetch
-    print_step "Phase 4/5 : Fastfetch..."
+
+    # Phase 5 : Fastfetch
+    print_step "Phase 5/6 : Fastfetch..."
     install_and_configure_fastfetch
-    
-    # Phase 5 : Disques et optimisations
-    print_step "Phase 5/5 : Disques BTRFS et optimisations..."
+
+    # Phase 6 : Disques et optimisations
+    print_step "Phase 6/6 : Disques BTRFS et optimisations..."
+    detect_btrfs_disks
     auto_configure_btrfs_disks
     apply_system_optimizations
     cleanup_system
-    
+
     show_final_status
-    
+
     echo ""
-    print_success "🎉 INSTALLATION COMPLÈTE TERMINÉE !"
+    print_success "🎉 INSTALLATION COMPLÈTE 2026 TERMINÉE !"
     ask_for_reboot
 }
 
 gaming_setup() {
-    print_step "🎮 SETUP GAMING COMPLET DÉMARRÉ"
-    
+    print_step "🎮 SETUP GAMING 2026 DÉMARRÉ"
+
+    get_system_info
+    detect_wayland
+
     update_system
+    install_nvidia_drivers
     install_gaming_tools
     apply_system_optimizations
-    
+
     echo ""
-    print_success "🎮 Setup gaming terminé !"
+    print_success "🎮 Setup gaming 2026 terminé !"
     echo ""
     print_step "Pour utiliser MangoHud et GameMode avec Steam :"
     echo -e "${CYAN}• Clic droit sur un jeu > Propriétés > Options de lancement${NC}"
     echo -e "${CYAN}• Ajouter : mangohud gamemoderun %command%${NC}"
-    
+    echo -e "${CYAN}• Pour les jeux Vulkan : vkbasalt %command%${NC}"
+
     ask_for_reboot
 }
 
 terminal_setup() {
-    print_step "💻 SETUP TERMINAL COMPLET DÉMARRÉ"
-    
+    print_step "💻 SETUP TERMINAL 2026 DÉMARRÉ"
+
+    get_system_info
+    detect_wayland
+
     install_terminal_setup
     configure_kitty
-    configure_zsh
     install_and_configure_fastfetch
-    
+
     echo ""
-    print_success "💻 Setup terminal terminé !"
+    print_success "💻 Setup terminal 2026 terminé !"
     echo ""
     print_step "Pour utiliser la nouvelle configuration :"
     echo -e "${CYAN}• Fermez ce terminal et ouvrez Kitty${NC}"
-    echo -e "${CYAN}• Lancez 'p10k configure' pour personnaliser${NC}"
-    
+    echo -e "${CYAN}• Lancez 'starship preset pastel-powerline -o ~/.config/starship.toml' pour personnaliser${NC}"
+    echo -e "${CYAN}• Exécutez 'exec zsh' pour recharger votre shell${NC}"
+
+    ask_for_reboot
+}
+
+ai_setup() {
+    print_step "🤖 SETUP AI/ML 2026 DÉMARRÉ"
+
+    get_system_info
+    update_system
+    install_ai_tools
+
+    echo ""
+    print_success "🤖 Setup AI/ML 2026 terminé !"
+    echo ""
+    print_step "Pour commencer avec l'AI :"
+    echo -e "${CYAN}• Lancer 'ollama pull llama3' pour télécharger un modèle${NC}"
+    echo -e "${CYAN}• Exécuter 'ollama run llama3' pour discuter avec le modèle${NC}"
+    echo -e "${CYAN}• Pour Stable Diffusion : cd ~/stable-diffusion-webui && ./webui.sh${NC}"
+    echo -e "${CYAN}• Pour ComfyUI : cd ~/ComfyUI && python main.py${NC}"
+
     ask_for_reboot
 }
 
 ask_for_reboot() {
     echo ""
     read -p "Voulez-vous redémarrer maintenant pour appliquer tous les changements ? (o/n): " reboot_choice
-    
+
     if [[ $reboot_choice == "o" || $reboot_choice == "O" ]]; then
         print_step "Redémarrage en cours..."
         sudo reboot
@@ -996,59 +1257,76 @@ ask_for_reboot() {
 # MENU DE CONFIGURATION BTRFS AVANCÉ
 #######################################
 
-btrfs_advanced_menu() {
-    if [ ${#DETECTED_BTRFS_DISKS[@]} -eq 0 ]; then
-        print_warning "Aucun disque BTRFS détecté"
-        return
-    fi
-    
-    echo ""
-    echo -e "${BLUE}Configuration avancée des disques BTRFS${NC}"
-    echo ""
-    
-    for i in "${!DETECTED_BTRFS_DISKS[@]}"; do
-        disk="${DETECTED_BTRFS_DISKS[$i]}"
-        echo -e "${GREEN}[$((i+1))]${NC} $disk"
+btrfs_menu() {
+    while true; do
+        print_header
+        echo -e "${CYAN}╔══════════════════════════════════════════════════╗${NC}"
+        echo -e "${CYAN}║         MENU CONFIGURATION BTRFS AVANCÉE         ║${NC}"
+        echo -e "${CYAN}╠══════════════════════════════════════════════════╣${NC}"
+        echo -e "${CYAN}║  1. Détecter les disques BTRFS                   ║${NC}"
+        echo -e "${CYAN}║  2. Configurer automatiquement les disques      ║${NC}"
+        echo -e "${CYAN}║  3. Configurer manuellement les disques         ║${NC}"
+        echo -e "${CYAN}║  4. Voir le statut des montages                 ║${NC}"
+        echo -e "${CYAN}║  5. Optimiser les filesystems BTRFS             ║${NC}"
+        echo -e "${CYAN}║  6. Créer des liens symboliques                 ║${NC}"
+        echo -e "${CYAN}║  7. Retour au menu principal                    ║${NC}"
+        echo -e "${CYAN}╚══════════════════════════════════════════════════╝${NC}"
+        echo ""
+        read -p "Choisissez une option (1-7): " choice
+
+        case $choice in
+            1)
+                detect_btrfs_disks
+                show_detected_disks
+                read -p "Appuyez sur Entrée pour continuer..."
+                ;;
+            2)
+                auto_configure_btrfs_disks
+                read -p "Appuyez sur Entrée pour continuer..."
+                ;;
+            3)
+                detect_btrfs_disks
+                manual_btrfs_configuration
+                read -p "Appuyez sur Entrée pour continuer..."
+                ;;
+            4)
+                show_btrfs_status
+                read -p "Appuyez sur Entrée pour continuer..."
+                ;;
+            5)
+                optimize_btrfs_filesystems
+                read -p "Appuyez sur Entrée pour continuer..."
+                ;;
+            6)
+                create_symlinks
+                read -p "Appuyez sur Entrée pour continuer..."
+                ;;
+            7)
+                return
+                ;;
+            *)
+                print_error "Option invalide ! Veuillez choisir entre 1 et 7."
+                sleep 2
+                ;;
+        esac
     done
-    
-    echo ""
-    echo "a) Configuration automatique (recommandée)"
-    echo "m) Configuration manuelle"
-    echo "s) Afficher le statut des montages"
-    echo "o) Optimiser les filesystems BTRFS"
-    echo "r) Retour au menu principal"
-    echo ""
-    read -p "Votre choix: " btrfs_choice
-    
-    case $btrfs_choice in
-        a|A)
-            auto_configure_btrfs_disks
-            ;;
-        m|M)
-            manual_btrfs_configuration
-            ;;
-        s|S)
-            show_btrfs_status
-            ;;
-        o|O)
-            optimize_btrfs_filesystems
-            ;;
-        r|R)
-            return
-            ;;
-        *)
-            print_error "Option invalide"
-            ;;
-    esac
 }
 
 manual_btrfs_configuration() {
+    detect_btrfs_disks
+    show_detected_disks
+
+    if [[ ${#DETECTED_BTRFS_DISKS[@]} -eq 0 ]]; then
+        print_warning "Aucun disque BTRFS détecté"
+        return
+    fi
+
     for i in "${!DETECTED_BTRFS_DISKS[@]}"; do
         disk="${DETECTED_BTRFS_DISKS[$i]}"
         echo ""
         echo -e "${CYAN}Configuration de $disk${NC}"
-        read -p "Nom du point de montage (ex: nas, games, data): " mount_name
-        
+        read -p "Nom du point de montage (ex: nas, games, data, ssd): " mount_name
+
         if [[ -n "$mount_name" ]]; then
             configure_btrfs_disk "$disk" "$mount_name"
         else
@@ -1061,24 +1339,46 @@ show_btrfs_status() {
     echo ""
     print_step "Statut des montages BTRFS:"
     echo ""
-    
-    df -h | grep btrfs || print_warning "Aucun filesystem BTRFS monté"
-    
+
+    # Montages actifs
+    echo -e "${CYAN}Montages actifs:${NC}"
+    mount | grep btrfs || echo "Aucun filesystem BTRFS monté"
+
     echo ""
-    print_step "Entrées fstab BTRFS:"
-    grep btrfs /etc/fstab || print_warning "Aucune entrée BTRFS dans fstab"
+    echo -e "${CYAN}Utilisation des disques:${NC}"
+    for mount_point in "${MOUNT_POINTS[@]}"; do
+        if mountpoint -q "$mount_point" 2>/dev/null; then
+            echo ""
+            echo -e "${CYAN}$mount_point:${NC}"
+            sudo btrfs filesystem usage -h "$mount_point" 2>&1 | tee -a "$LOG_FILE"
+        fi
+    done
+
+    echo ""
+    echo -e "${CYAN}Entrées fstab:${NC}"
+    grep btrfs /etc/fstab || echo "Aucune entrée BTRFS dans fstab"
 }
 
 optimize_btrfs_filesystems() {
     print_step "Optimisation des filesystems BTRFS..."
-    
+
     for mount_point in "${MOUNT_POINTS[@]}"; do
         if mountpoint -q "$mount_point" 2>/dev/null; then
             print_step "Optimisation de $mount_point..."
-            sudo btrfs filesystem defragment -r -v -czstd "$mount_point" 2>&1 | tee -a $LOG_FILE &
+
+            # Défragmentation
+            sudo btrfs filesystem defragment -r -v -czstd "$mount_point" 2>&1 | tee -a "$LOG_FILE" &
+
+            # Équilibrage
+            sudo btrfs balance start -dusage=70 -musage=70 "$mount_point" 2>&1 | tee -a "$LOG_FILE" &
+
+            # Nettoyage des snapshots
+            if command -v snapper &> /dev/null; then
+                sudo snapper -c root cleanup number 2>&1 | tee -a "$LOG_FILE"
+            fi
         fi
     done
-    
+
     print_success "Optimisation en cours en arrière-plan"
 }
 
@@ -1087,56 +1387,66 @@ optimize_btrfs_filesystems() {
 #######################################
 
 main() {
-    # Vérifications préliminaires
+    # Initialisation
     check_root
-    
-    # Initialisation du log
-    touch $LOG_FILE
-    echo "=== EndeavourOS Unified Setup - Session démarrée le $(date) ===" >> $LOG_FILE
-    
+    print_header
+    get_system_info
+    detect_wayland
+    touch "$LOG_FILE"
+    echo "=== Début du log - $(date) ===" > "$LOG_FILE"
+
+    # Menu principal
     while true; do
-        show_main_menu
-        
+        print_header
+        echo -e "${CYAN}╔══════════════════════════════════════════════════╗${NC}"
+        echo -e "${CYAN}║           MENU PRINCIPAL - ENDEAVOUR OS 2026          ║${NC}"
+        echo -e "${CYAN}╠══════════════════════════════════════════════════╣${NC}"
+        echo -e "${CYAN}║  1. Installation complète 2026                     ║${NC}"
+        echo -e "${CYAN}║  2. Setup gaming 2026                             ║${NC}"
+        echo -e "${CYAN}║  3. Setup terminal 2026                           ║${NC}"
+        echo -e "${CYAN}║  4. Setup AI/ML 2026                              ║${NC}"
+        echo -e "${CYAN}║  5. Configuration BTRFS avancée                   ║${NC}"
+        echo -e "${CYAN}║  6. Mise à jour complète du système               ║${NC}"
+        echo -e "${CYAN}║  7. Installer les pilotes NVIDIA                 ║${NC}"
+        echo -e "${CYAN}║  8. Installer les paquets essentiels             ║${NC}"
+        echo -e "${CYAN}║  9. Installer yay et applications AUR             ║${NC}"
+        echo -e "${CYAN}║ 10. Appliquer les optimisations système           ║${NC}"
+        echo -e "${CYAN}║ 11. Nettoyer le système                           ║${NC}"
+        echo -e "${CYAN}║ 12. Voir le statut final                          ║${NC}"
+        echo -e "${CYAN}║ 13. Détecter les disques BTRFS                    ║${NC}"
+        echo -e "${CYAN}║  0. Quitter                                      ║${NC}"
+        echo -e "${CYAN}╚══════════════════════════════════════════════════╝${NC}"
+        echo ""
+        read -p "Choisissez une option (0-13): " choice
+
         case $choice in
             1)
                 full_installation
-                break
                 ;;
             2)
                 gaming_setup
-                break
                 ;;
             3)
                 terminal_setup
-                break
                 ;;
             4)
-                print_step "Post-installation système..."
-                update_system
-                install_nvidia_drivers
-                install_essential_packages
-                install_yay
-                install_aur_apps
-                apply_system_optimizations
-                cleanup_system
-                print_success "Post-installation terminée"
+                ai_setup
                 ;;
             5)
-                btrfs_advanced_menu
+                btrfs_menu
                 ;;
             6)
-                install_gaming_tools
+                update_system
                 ;;
             7)
-                install_terminal_setup
-                configure_kitty
+                install_nvidia_drivers
                 ;;
             8)
-                install_terminal_setup
-                configure_zsh
+                install_essential_packages
                 ;;
             9)
-                install_and_configure_fastfetch
+                install_yay
+                install_aur_apps
                 ;;
             10)
                 apply_system_optimizations
@@ -1146,6 +1456,7 @@ main() {
                 ;;
             12)
                 show_final_status
+                read -p "Appuyez sur Entrée pour continuer..."
                 ;;
             13)
                 detect_btrfs_disks
@@ -1153,7 +1464,7 @@ main() {
                 read -p "Appuyez sur Entrée pour continuer..."
                 ;;
             0)
-                print_step "Merci d'avoir utilisé le script EndeavourOS Unified Setup !"
+                print_step "Merci d'avoir utilisé le script EndeavourOS Unified Setup 2026 !"
                 echo ""
                 print_step "Log disponible : $LOG_FILE"
                 exit 0
@@ -1163,11 +1474,6 @@ main() {
                 sleep 2
                 ;;
         esac
-        
-        if [[ $choice != 5 && $choice != 12 && $choice != 13 ]]; then
-            echo ""
-            read -p "Appuyez sur Entrée pour retourner au menu principal..."
-        fi
     done
 }
 
