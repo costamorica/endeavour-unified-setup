@@ -1,5 +1,6 @@
 🚀 EndeavourOS Unified Setup 2026
 Script tout-en-un pour EndeavourOS - Post-installation, Gaming, AI, Terminal moderne, BTRFS et Wayland
+
 <img src="https://img.shields.io/badge/Version-3.0.0-blue?style=for-the-badge" alt="Version" />
 <img src="https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge" alt="License: MIT" />
 <img src="https://img.shields.io/badge/Shell-Bash-4EAA25?style=for-the-badge&logo=gnu-bash&logoColor=white" alt="Shell: Bash" />
