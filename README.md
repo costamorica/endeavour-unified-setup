@@ -7,22 +7,47 @@ Script tout-en-un pour EndeavourOS - Post-installation, Gaming, AI, Terminal mod
 <img src="https://img.shields.io/badge/EndeavourOS-Compatible-7F5AB6?style=for-the-badge&logo=linux&logoColor=white" alt="EndeavourOS" />
 <img src="https://img.shields.io/badge/Wayland-Supported-0078D4?style=for-the-badge&logo=wayland&logoColor=white" alt="Wayland" />
 
-📋 Table des matières
+---
 
-✨ Nouveautés 2026
-🎯 Fonctionnalités
-📥 Installation
-📦 Ce qui est installé
-🖥️ Configuration terminal
-🎮 Setup gaming
-🤖 AI & Machine Learning
-💾 Gestion BTRFS
-🔧 Optimisations système
-📸 Captures d'écran
-🔧 Utilisation avancée
-🆘 Dépannage
-🤝 Contribution
-📄 Licence
+## 📋 Aperçu rapide
+
+Ce script transforme votre installation fraîche d'EndeavourOS en un environnement complet et optimisé :
+
+🎯 **Installation complète** : Post-installation, pilotes, outils système
+🎮 **Gaming ready** : Steam, Proton, MangoHud, GameMode
+🤖 **AI & ML** : PyTorch, Ollama, Stable Diffusion
+💻 **Terminal moderne** : Kitty, Zsh, Starship, Fastfetch
+💾 **BTRFS intelligent** : Détection auto, optimisation, snapshots
+🔧 **Multi-machines** : Configuration adaptable selon votre matériel
+
+## 🚀 Démarrage rapide
+
+Après l'installation complète :
+
+1. **Redémarrez** votre système pour appliquer tous les changements
+2. **Ouvrez Kitty** comme terminal par défaut (recherche "Kitty")
+3. **Lancez Fastfetch** pour voir votre système : `fastfetch`
+4. **Configurez Steam** : clic droit sur un jeu → Propriétés → Options de lancement → `mangohud gamemoderun %command%`
+5. **Pour l'IA** : `ollama pull llama3` puis `ollama run llama3`
+
+---
+
+## 📋 Table des matières
+
+- [✨ Nouveautés 2026](#-nouveautés-2026)
+- [🎯 Fonctionnalités](#-fonctionnalités)
+- [📥 Installation](#-installation)
+- [📦 Ce qui est installé](#-ce-qui-est-installé)
+- [🖥️ Configuration terminal](#️-configuration-terminal)
+- [🎮 Setup gaming](#-setup-gaming)
+- [🤖 AI & Machine Learning](#-ai--machine-learning)
+- [💾 Gestion BTRFS](#-gestion-btrfs)
+- [🔧 Optimisations système](#-optimisations-système)
+- [📸 Captures d'écran](#-captures-décran)
+- [🔧 Utilisation avancée](#-utilisation-avancée)
+- [🆘 Dépannage](#-dépannage)
+- [🤝 Contribution](#-contribution)
+- [📄 Licence](#-licence)
 
 
 ✨ Nouveautés 2026
@@ -116,84 +141,234 @@ JupyterLab (notebooks interactifs)
 
 
 📥 Installation
-Prérequis
 
-EndeavourOS ou Arch Linux fraîchement installé
-Connexion Internet active
-Compte utilisateur non-root avec droits sudo
+## Prérequis
 
-Installation en une ligne
+Avant de commencer, assurez-vous d'avoir :
+
+- ✅ **Système d'exploitation** : EndeavourOS ou Arch Linux fraîchement installé
+- ✅ **Connexion Internet** : Une connexion stable pour télécharger les paquets
+- ✅ **Privilèges** : Compte utilisateur avec droits `sudo` (pas root)
+- ✅ **Espace disque** : Au moins 10 Go d'espace libre
+- ✅ **Temps** : 30-60 minutes selon votre connexion
+
+> **⚠️ Important** : Ce script installe de nombreux paquets. Il est recommandé de faire une sauvegarde avant l'exécution.
+
+## Méthodes d'installation
+
+### 🚀 Installation automatique (Recommandée)
+
+Pour une installation en une seule commande :
+
+```bash
 curl -fsSL https://raw.githubusercontent.com/costamorica/endeavour-unified-setup/main/endeavour_unified_setup.sh | bash
-Installation manuelle
-# Clonage du dépôt
+```
+
+Cette commande :
+1. Télécharge le script depuis GitHub
+2. Le rend exécutable
+3. Lance l'installation interactive
+
+### 📥 Installation manuelle
+
+Si vous préférez contrôler le processus :
+
+```bash
+# 1. Cloner le dépôt
 git clone https://github.com/costamorica/endeavour-unified-setup.git
+
+# 2. Aller dans le dossier
 cd endeavour-unified-setup
 
-# Rendre exécutable
+# 3. Rendre le script exécutable
 chmod +x endeavour_unified_setup.sh
 
-# Lancer l'installation
+# 4. Lancer l'installation
 ./endeavour_unified_setup.sh
+```
+
+## 🖥️ Premier lancement
+
+Après l'installation, le script présente un menu interactif :
+
+```
+╔══════════════════════════════════════════════════╗
+║           MENU PRINCIPAL - ENDEAVOUR OS 2026          ║
+╠══════════════════════════════════════════════════╣
+║  1. Installation complète 2026                     ║
+║  2. Setup gaming 2026                             ║
+║  3. Setup terminal 2026                           ║
+║  4. Setup AI/ML 2026                              ║
+║  5. Configuration BTRFS avancée                   ║
+║  6. Mise à jour complète du système               ║
+║  7. Installer les pilotes NVIDIA                 ║
+║  8. Installer les paquets essentiels             ║
+║  9. Installer yay et applications AUR             ║
+║ 10. Appliquer les optimisations système           ║
+║ 11. Nettoyer le système                           ║
+║ 12. Voir le statut final                          ║
+║ 13. Détecter les disques BTRFS                    ║
+║ 14. Configurer les options de compatibilité       ║
+║  0. Quitter                                      ║
+╚══════════════════════════════════════════════════╝
+```
+
+**Conseil** : Commencez par l'option **1** pour une installation complète, ou choisissez les options selon vos besoins.
+
+## 🔧 Configuration multi-machines
+
+Pour adapter le script à votre matériel :
+
+1. Lancez l'option **14** : "Configurer les options de compatibilité"
+2. Répondez aux questions pour sauter certaines installations
+3. Un fichier `~/.endeavour_setup_config` sera créé automatiquement
+
+Exemple de configuration :
+```bash
+SKIP_NVIDIA=true    # Pas de carte NVIDIA
+SKIP_GAMING=false   # Besoin du gaming
+SKIP_AI=true        # Pas d'IA
+SKIP_AUR=false      # Installer les AUR
+```
+
+## 📋 Logs et dépannage
+
+Les logs sont automatiquement sauvegardés dans `/tmp/endeavour_unified_setup_YYYYMMDD.log`
+
+Pour consulter les logs en temps réel :
+```bash
+tail -f /tmp/endeavour_unified_setup_$(date +%Y%m%d).log
+```
+
+En cas de problème, consultez la section [Dépannage](#-dépannage) ci-dessous.
 
 📦 Ce qui est installé
-🔨 Outils système
-base-devel, git, vim, nano, wget, curl, htop, btop, tree, unzip, zip, p7zip, rsync, openssh, bash-completion
-earlyoom, tlp, reflector, pacman-contrib, pipewire, wireplumber, pavucontrol
-🎵 Multimédia
-ffmpeg, gstreamer, gst-plugins-good, gst-plugins-bad, gst-plugins-ugly, gst-libav
-libdvdcss, x264, x265, lame, aom, dav1d, libva-mesa-driver
-🎨 Polices
-ttf-liberation, ttf-dejavu, noto-fonts, noto-fonts-emoji, noto-fonts-cjk
-nerd-fonts, adobe-source-code-pro-fonts, ttf-jetbrains-mono-nerd
-📱 Applications
-firefox, vlc, libreoffice-fresh, gimp, thunderbird, gparted, bleachbit, timeshift
-google-chrome, visual-studio-code-bin, discord, spotify, zoom (via AUR)
-🎮 Gaming
-steam, lutris, heroic-games-launcher-bin, bottles, mangohud, gamemode
-wine-staging, wine-gecko, wine-mono, winetricks, protonup-qt
-lib32-vulkan-icd-loader, vulkan-icd-loader, lib32-mesa, mesa
-⚡ Outils modernes
-exa (eza), bat, fd, ripgrep, fzf, zoxide, fastfetch, starship
-kitty, zsh, oh-my-zsh-git, zsh-autosuggestions, zsh-syntax-highlighting
-🤖 AI/ML
-python-pytorch, python-tensorflow, jupyterlab, ollama, stable-diffusion-webui
-python-pip, python-numpy, python-pandas, python-matplotlib
+
+Le script installe automatiquement plus de **200 paquets** organisés par catégories :
+
+## 🔨 Outils système essentiels
+
+**Développement & CLI :**
+- `base-devel`, `git`, `vim`, `nano`, `wget`, `curl`
+- `htop`, `btop`, `tree`, `unzip`, `zip`, `p7zip`
+- `rsync`, `openssh`, `bash-completion`
+
+**Système & Performance :**
+- `earlyoom`, `tlp`, `reflector`, `pacman-contrib`
+- `pipewire`, `wireplumber`, `pavucontrol`
+- `fwupd`, `thermald`, `preload`
+
+## 🎵 Multimédia & Codecs
+
+- `ffmpeg`, `gstreamer` (plugins good/bad/ugly)
+- `gst-libav`, `libdvdcss`, `x264`, `x265`
+- `lame`, `aom`, `dav1d`, `libva-mesa-driver`
+
+## 🎨 Polices & Thèmes
+
+**Polices système :**
+- `ttf-liberation`, `ttf-dejavu`, `noto-fonts`
+- `noto-fonts-emoji`, `noto-fonts-cjk`
+
+**Polices développeur (Nerd Fonts) :**
+- `ttf-jetbrains-mono-nerd`, `ttf-firacode-nerd`
+- `nerd-fonts-complete`, `ttf-meslo-nerd`
+
+## 📱 Applications bureautiques
+
+**Essentielles :**
+- `firefox`, `vlc`, `libreoffice-fresh`
+- `gimp`, `thunderbird`, `gparted`
+
+**Via AUR :**
+- `google-chrome`, `visual-studio-code-bin`
+- `discord`, `spotify`, `zoom`
+
+## 🎮 Gaming complet
+
+**Launchers & Jeux :**
+- `steam`, `lutris`, `heroic-games-launcher-bin`
+- `bottles`, `mangohud`, `gamemode`
+
+**Wine & Proton :**
+- `wine-staging`, `winetricks`, `protonup-qt`
+- `dxvk-bin`, `vkd3d-proton-bin`
+
+**Graphismes :**
+- `lib32-vulkan-icd-loader`, `vulkan-icd-loader`
+- `lib32-mesa`, `mesa`, `vulkan-tools`
+
+## ⚡ Outils modernes (CLI)
+
+**Navigation & Recherche :**
+- `eza` (remplace `ls`), `bat` (remplace `cat`)
+- `fd` (remplace `find`), `ripgrep` (remplace `grep`)
+- `fzf`, `zoxide` (remplace `cd`)
+
+**Terminal & Shell :**
+- `kitty`, `zsh`, `oh-my-zsh-git`
+- `zsh-autosuggestions`, `zsh-syntax-highlighting`
+- `starship`, `fastfetch`
+
+## 🤖 AI & Machine Learning
+
+**Frameworks Python :**
+- `python-pytorch`, `python-tensorflow`
+- `python-scikit-learn`, `python-pandas`
+- `python-numpy`, `python-matplotlib`
+
+**Outils IA :**
+- `jupyterlab`, `ollama`, `stable-diffusion-webui`
+- `python-transformers`, `python-diffusers`
 
 🖥️ Configuration terminal
-Kitty (Terminal moderne)
 
-Thème : Cyberpunk (bleu électrique + transparence)
-Police : JetBrains Mono Nerd Font (10pt)
-Raccourcis :
-Ctrl+Shift+T → Nouvel onglet
-Ctrl+Shift+W → Fermer l'onglet
-Ctrl+Shift+F → Plein écran
+Le script configure un environnement terminal moderne et productif.
 
+## 🐱 Kitty (Terminal émulé)
 
-Transparence : 90% (réglable dans ~/.config/kitty/kitty.conf)
+**Thème Cyberpunk :**
+- Couleurs : Bleu électrique (#00aaff) et cyan
+- Transparence : 90% (configurable)
+- Police : JetBrains Mono Nerd Font (12pt)
 
-zsh + Starship
+**Raccourcis clavier :**
+- `Ctrl+Shift+T` → Nouvel onglet
+- `Ctrl+Shift+W` → Fermer l'onglet
+- `Ctrl+Shift+F` → Plein écran
+- `Ctrl+Shift+→/←` → Onglet suivant/précédent
 
-Thème : Starship (remplace Powerlevel10k)
-Plugins :
-git (status, branches)
-zsh-autosuggestions (suggestions intelligentes)
-zsh-syntax-highlighting (couleurs de syntaxe)
-sudo (double Esc pour sudo)
+**Configuration :** `~/.config/kitty/kitty.conf`
 
+## 🐚 Zsh + Starship
 
-Aliases :alias ll='eza -la --icons --group-directories-first'
+**Shell moderne :**
+- Zsh avec Oh My Zsh
+- Plugins : autosuggestions, syntax-highlighting
+- Prompt Starship (thème pastel-powerline)
+
+**Fonctionnalités :**
+- Suggestions intelligentes (flèches)
+- Coloration syntaxique
+- Double `Esc` pour ajouter `sudo`
+- Intégration Git (branches, status)
+
+**Aliases pratiques :**
+```bash
+alias ll='eza -la --icons --group-directories-first'
 alias cat='bat --paging=never'
 alias update='sudo pacman -Syu'
 alias install='sudo pacman -S'
+```
 
+## 🚀 Fastfetch
 
-Fastfetch
+**Configuration personnalisée :**
+- Logo EndeavourOS coloré
+- Sections organisées : Système, Hardware, Interface
+- Affichage : Kernel, GPU, RAM, paquets installés
 
-Configuration personnalisée :
-Logo EndeavourOS avec couleurs cyan/bleu
-Sections organisées : Système, Hardware, Interface
-Affichage des paquets installés, kernel, GPU, RAM
+**Fichier :** `~/.config/fastfetch/config.jsonc`
 
 
 Lancement automatique au démarrage de zsh
@@ -423,54 +598,100 @@ Gaming (MangoHud + GameMode)
 Overlay de performance en jeu
 
 🔧 Utilisation avancée
-Options de menu
-Copier le tableau
 
+## Options du menu principal
 
-Option
-Description
-Durée estimée
+Le script offre 14 options pour une personnalisation fine :
 
+| Option | Description | Durée estimée | Usage |
+|--------|-------------|---------------|-------|
+| **1** | Installation complète | 30-60 min | Tout installer automatiquement |
+| **2** | Setup gaming | 15-30 min | Gaming + optimisations |
+| **3** | Setup terminal | 10-15 min | Terminal moderne uniquement |
+| **4** | Setup AI/ML | 20-40 min | Outils d'intelligence artificielle |
+| **5** | Configuration BTRFS | 5-10 min | Gestion avancée des disques |
+| **6** | Mise à jour système | 10-20 min | Post-installation basique |
+| **7** | Pilotes NVIDIA | 5-10 min | Installation pilotes graphiques |
+| **8** | Paquets essentiels | 10-15 min | Outils système de base |
+| **9** | Yay + AUR | 15-30 min | Gestionnaire AUR + applications |
+| **10** | Optimisations | 5 min | Performance système |
+| **11** | Nettoyage | 2 min | Libérer de l'espace |
+| **12** | Statut final | 1 min | Voir le résumé |
+| **13** | Détection BTRFS | 1 min | Lister les disques |
+| **14** | Config multi-machines | 2-5 min | Adapter à votre matériel |
 
+## Configuration personnalisée
 
-1
-Installation complète (tout en un)
-30-60 min
+### Fichier de config
 
+Créez `~/.endeavour_setup_config` pour personnaliser :
 
-2
-Setup gaming optimisé
-15-30 min
+```bash
+# Exemple de configuration
+SKIP_NVIDIA=true    # Sauter les pilotes NVIDIA
+SKIP_GAMING=false   # Installer le gaming
+SKIP_AI=true        # Sauter l'IA
+SKIP_AUR=false      # Installer les AUR
+```
 
+### Variables d'environnement
 
-14
-Configuration multi-machines
-2-5 min
+Le script configure automatiquement :
 
+```bash
+# Gaming
+export MANGOHUD_CONFIG=fps,frametime,gpu_name,cpu_temp,gpu_temp
+export GAMEMODED_AUTO=true
 
-4
-Installation outils AI/ML
-20-40 min
+# Graphismes
+export __GL_SHADER_DISK_CACHE=1
+export __GL_SHADER_DISK_CACHE_PATH="$HOME/.cache/nv_shader_cache"
 
+# Wayland
+export QT_QPA_PLATFORM=wayland
+export GDK_BACKEND=wayland
+```
 
-5
-Configuration BTRFS avancée
-5-10 min
+## Logs et débogage
 
+### Consulter les logs
 
-6
-Post-installation système
-10-20 min
+```bash
+# Logs en temps réel
+tail -f /tmp/endeavour_unified_setup_$(date +%Y%m%d).log
 
+# Voir les erreurs
+grep "ERROR" /tmp/endeavour_unified_setup_*.log
+```
 
-7
-Optimisations système
-5 min
+### Vérifications post-installation
 
+```bash
+# Statut des services
+systemctl --user status pipewire
+systemctl status gamemoded
 
-8
-Nettoyage du système
-2 min
+# Test du terminal
+fastfetch
+starship --version
+
+# Test gaming
+mangohud --version
+gamemoded -t
+```
+
+### Reconfiguration
+
+```bash
+# Reconfigurer Starship
+starship preset pastel-powerline -o ~/.config/starship.toml
+
+# Recharger la config Zsh
+exec zsh
+
+# Test des raccourcis Kitty
+# Ouvrir ~/.config/kitty/kitty.conf
+```
 
 
 Logs et débogage
@@ -544,54 +765,66 @@ Support et bugs
 💬 Discussions : Forum de la communauté
 
 
-🤝 Contribution
-Comment contribuer
+## 🤝 Contribution
 
-Fork le projet
-Créer une branche (git checkout -b feature/ma-nouvelle-fonctionnalité)
-Commit vos changements (git commit -m 'Ajout de X')
-Push (git push origin feature/ma-nouvelle-fonctionnalité)
-Ouvrir une Pull Request
+Les contributions sont les bienvenues ! 🎉
 
-Guidelines de contribution
+### Comment contribuer
 
-📝 Code propre et commenté
-🧪 Tests avant soumission (sur une VM ou machine dédiée)
-📚 Documentation des nouvelles fonctionnalités
-🎨 Respect du style existant (couleurs, emojis, structure)
+1. **Fork** le projet
+2. **Créez** une branche (`git checkout -b feature/AmazingFeature`)
+3. **Committez** vos changements (`git commit -m 'Add some AmazingFeature'`)
+4. **Poussez** vers la branche (`git push origin feature/AmazingFeature`)
+5. **Ouvrez** une Pull Request
 
-Structure du projet
-endeavour-unified-setup/
-├── endeavour_unified_setup.sh    # Script principal
-├── README.md                     # Documentation (ce fichier)
-├── LICENSE                       # Licence MIT
-├── docs/                         # Documentation détaillée
-│   ├── INSTALLATION.md           # Guide d'installation
-│   ├── GAMING.md                 # Guide gaming
-│   ├── AI.md                     # Guide AI/ML
-│   ├── BTRFS.md                  # Guide BTRFS
-│   └── WAYLAND.md                # Guide Wayland
-└── screenshots/                  # Captures d'écran
-    ├── menu.png
-    ├── terminal.png
-    ├── fastfetch.png
-    └── gaming.png
+### Guidelines
 
-📄 Licence
-Ce projet est sous licence MIT - voir le fichier LICENSE pour plus de détails.
+✅ **Code** : Respecter le style Bash existant
+✅ **Tests** : Tester sur une VM avant soumission
+✅ **Documentation** : Mettre à jour le README si nécessaire
+✅ **Commits** : Messages clairs et descriptifs
 
-🙏 Remerciements
+### Types de contributions
 
-EndeavourOS Team - Pour cette distribution incroyable
-Arch Linux Community - Pour l'écosystème et les paquets
-Oh My Zsh - Framework zsh fantastique
-Starship - Prompt moderne et personnalisable
-Kitty - Terminal rapide et configurable
-MangoHud - Overlay de performance pour le gaming
-Ollama - Pour les modèles LLM locaux
+🐛 **Bug fixes** : Corrections de bugs
+✨ **Features** : Nouvelles fonctionnalités
+📚 **Documentation** : Améliorations de la doc
+🎨 **UI/UX** : Améliorations de l'interface
+🔧 **Maintenance** : Nettoyage du code
 
+---
 
-📊 Statistiques
+## 🌟 Support & Communauté
+
+### Obtenir de l'aide
+
+- 📧 **Issues GitHub** : Pour les bugs et demandes de fonctionnalités
+- 💬 **Discussions GitHub** : Pour les questions générales
+- 🐛 **Dépannage** : Consultez la section [Dépannage](#-dépannage)
+
+### Signaler un bug
+
+Pour signaler un bug efficacement :
+
+1. **Vérifiez** qu'il n'existe pas déjà (issues)
+2. **Fournissez** les logs : `/tmp/endeavour_unified_setup_*.log`
+3. **Indiquez** votre matériel : `inxi -F` ou `neofetch`
+4. **Décrivez** les étapes pour reproduire
+
+### Remerciements
+
+Un grand merci à la communauté EndeavourOS et Arch Linux pour leur excellent travail ! 🙏
+
+---
+
+## 📄 Licence
+
+Ce projet est sous licence MIT - voir le fichier [LICENSE](LICENSE) pour plus de détails.
+
+---
+
+## 📊 Statistiques
+
 <img src="https://img.shields.io/github/stars/costamorica/endeavour-unified-setup?style=social" alt="GitHub stars" />
 <img src="https://img.shields.io/github/forks/costamorica/endeavour-unified-setup?style=social" alt="GitHub forks" />
 <img src="https://img.shields.io/github/issues/costamorica/endeavour-unified-setup" alt="GitHub issues" />
