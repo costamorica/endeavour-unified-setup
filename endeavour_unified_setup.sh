@@ -2,9 +2,9 @@
 
 #######################################
 # Script Unifié EndeavourOS - Configuration Complète 2026
-# Version: 3.0.0 (Février 2026)
+# Version: 3.1.0 (Mai 2026)
 # Regroupe : Post-installation, Gaming, Terminal, Fastfetch, BTRFS
-# Nouveautés : Wayland optimisé, AI tools, Kernel 6.8+, PipeWire
+# Nouveautés : Compatibilité multi-machines, Optimisations avancées, AI tools, Wayland
 #######################################
 
 # Couleurs pour l'affichage
@@ -18,12 +18,17 @@ ORANGE='\033[38;5;208m'
 NC='\033[0m' # No Color
 
 # Variables globales
-SCRIPT_VERSION="3.0.0"
+SCRIPT_VERSION="3.1.0"
 LOG_FILE="/tmp/endeavour_unified_setup_$(date +%Y%m%d).log"
+CONFIG_FILE="$HOME/.endeavour_setup_config"
 DETECTED_BTRFS_DISKS=()
 MOUNT_POINTS=()
 SYSTEM_INFO=()
 IS_WAYLAND=false
+SKIP_NVIDIA=false
+SKIP_GAMING=false
+SKIP_AI=false
+SKIP_AUR=false
 
 #######################################
 # FONCTIONS UTILITAIRES MODERNISÉES
@@ -33,7 +38,7 @@ print_header() {
     clear
     echo -e "${PURPLE}╔════════════════════════════════════════════════════════════════════════════════╗${NC}"
     echo -e "${PURPLE}║              ENDEAVOUR OS - SETUP UNIFIÉ 2026 (v$SCRIPT_VERSION)              ║${NC}"
-    echo -e "${PURPLE}║    Post-install • Gaming • AI Tools • Wayland • BTRFS • Kernel 6.8+     ║${NC}"
+    echo -e "${PURPLE}║    Post-install • Gaming • AI Tools • Wayland • BTRFS • Multi-machines     ║${NC}"
     echo -e "${PURPLE}╚════════════════════════════════════════════════════════════════════════════════╝${NC}"
     echo ""
 }
@@ -65,10 +70,18 @@ check_error() {
     fi
 }
 
-check_root() {
-    if [[ $EUID -eq 0 ]]; then
-        print_error "Ce script ne doit pas être exécuté en tant que root!"
-        print_warning "Utilisez votre compte utilisateur normal avec sudo."
+check_dependencies() {
+    local missing_deps=()
+
+    for dep in git curl wget sudo; do
+        if ! command -v "$dep" &> /dev/null; then
+            missing_deps+=("$dep")
+        fi
+    done
+
+    if [[ ${#missing_deps[@]} -gt 0 ]]; then
+        print_error "Dépendances manquantes: ${missing_deps[*]}"
+        print_step "Installez-les avec: sudo pacman -S ${missing_deps[*]}"
         exit 1
     fi
 }
@@ -97,6 +110,15 @@ get_system_info() {
     )
 }
 
+load_config() {
+    if [[ -f "$CONFIG_FILE" ]]; then
+        source "$CONFIG_FILE"
+        print_step "Configuration chargée depuis $CONFIG_FILE"
+    else
+        print_step "Aucun fichier de configuration trouvé, utilisation des valeurs par défaut"
+    fi
+}
+
 #######################################
 # DÉTECTION AUTOMATIQUE DES DISQUES BTRFS
 #######################################
@@ -104,16 +126,16 @@ get_system_info() {
 detect_btrfs_disks() {
     print_step "Détection des disques BTRFS..."
 
-    # Nouvelle méthode plus fiable
+    # Méthode fiable sans jq
     while IFS= read -r line; do
-        if [[ "$line" == *btrfs* ]]; then
-            disk=$(echo "$line" | awk '{print $1}')
-            if [[ -b "$disk" && ! " ${DETECTED_BTRFS_DISKS[@]} " =~ " $disk " ]]; then
-                DETECTED_BTRFS_DISKS+=("$disk")
-                print_step "Disque BTRFS détecté: $disk"
+        if [[ "$line" =~ btrfs ]]; then
+            device=$(echo "$line" | awk '{print $1}')
+            if [[ -b "$device" && ! " ${DETECTED_BTRFS_DISKS[@]} " =~ " $device " ]]; then
+                DETECTED_BTRFS_DISKS+=("$device")
+                print_step "Disque BTRFS détecté: $device"
             fi
         fi
-    done < <(lsblk -o NAME,FSTYPE,MOUNTPOINT -J | jq -r '.blockdevices[] | select(.fstype == "btrfs") | .name' | while read -r name; do echo "/dev/$name"; done)
+    done < <(lsblk -f -o NAME,FSTYPE | grep btrfs | awk '{print "/dev/" $1 " " $2}')
 
     if [[ ${#DETECTED_BTRFS_DISKS[@]} -eq 0 ]]; then
         print_warning "Aucun disque BTRFS détecté"
@@ -254,6 +276,11 @@ update_system() {
 }
 
 install_nvidia_drivers() {
+    if [[ "$SKIP_NVIDIA" == true ]]; then
+        print_step "Installation des pilotes NVIDIA ignorée (configuré pour sauter)"
+        return
+    fi
+
     if lspci | grep -i nvidia > /dev/null; then
         print_step "Carte NVIDIA détectée. Installation des pilotes 2026..."
 
@@ -340,6 +367,11 @@ install_yay() {
 }
 
 install_aur_apps() {
+    if [[ "$SKIP_AUR" == true ]]; then
+        print_step "Installation des applications AUR ignorée (configuré pour sauter)"
+        return
+    fi
+
     print_step "Installation des applications AUR 2026..."
 
     AUR_PACKAGES=(
@@ -807,6 +839,11 @@ EOF
 #######################################
 
 install_gaming_tools() {
+    if [[ "$SKIP_GAMING" == true ]]; then
+        print_step "Installation des outils gaming ignorée (configuré pour sauter)"
+        return
+    fi
+
     print_step "Installation des outils gaming 2026..."
 
     # Outils gaming essentiels
@@ -902,6 +939,11 @@ EOF
 #######################################
 
 install_ai_tools() {
+    if [[ "$SKIP_AI" == true ]]; then
+        print_step "Installation des outils AI/ML ignorée (configuré pour sauter)"
+        return
+    fi
+
     print_step "Installation des outils AI/ML 2026..."
 
     # Outils AI essentiels
@@ -988,7 +1030,7 @@ apply_system_optimizations() {
     sudo sed -i 's/#CPU_ENERGY_PERF_POLICY_ON_BAT=.*/CPU_ENERGY_PERF_POLICY_ON_BAT=power/' /etc/tlp.conf
 
     # Configuration de earlyoom
-    sudo sed -i 's/#EARLYOOM_ARGS=""/EARLYOOM_ARGS="-r 60 -m 10 -M 409600 --avoid '(^|/)(init|systemd|Xorg|sshd|gdm|sddm|lightdm|kwin|plasmashell|gnome-shell|gnome-session|gnome-settings-daemon|dbus-daemon|pipewire|wireplumber)'"/' /etc/default/earlyoom
+    sudo sed -i 's|#EARLYOOM_ARGS=""|EARLYOOM_ARGS="-r 60 -m 10 -M 409600 --avoid '\''(^|/)(init|systemd|Xorg|sshd|gdm|sddm|lightdm|kwin|plasmashell|gnome-shell|gnome-session|gnome-settings-daemon|dbus-daemon|pipewire|wireplumber)'\''"|' /etc/default/earlyoom
 
     # Variables d'environnement
     cat >> "$HOME/.bashrc" << 'EOF'
@@ -1139,6 +1181,7 @@ full_installation() {
     # Initialisation
     get_system_info
     detect_wayland
+    load_config
 
     # Phase 1 : Système de base
     print_step "Phase 1/6 : Système de base..."
@@ -1184,6 +1227,7 @@ gaming_setup() {
 
     get_system_info
     detect_wayland
+    load_config
 
     update_system
     install_nvidia_drivers
@@ -1206,6 +1250,7 @@ terminal_setup() {
 
     get_system_info
     detect_wayland
+    load_config
 
     install_terminal_setup
     configure_kitty
@@ -1226,6 +1271,7 @@ ai_setup() {
     print_step "🤖 SETUP AI/ML 2026 DÉMARRÉ"
 
     get_system_info
+    load_config
     update_system
     install_ai_tools
 
@@ -1251,6 +1297,37 @@ ask_for_reboot() {
     else
         print_warning "N'oubliez pas de redémarrer plus tard pour finaliser la configuration."
     fi
+}
+
+configure_skips() {
+    print_step "Configuration des options de compatibilité multi-machines"
+
+    echo "Cette configuration permet de sauter certaines installations selon votre machine."
+    echo "Utile pour les machines sans GPU NVIDIA, sans besoin de gaming, etc."
+    echo ""
+
+    read -p "Sauter l'installation des pilotes NVIDIA ? (o/n) [n]: " skip_nvidia
+    SKIP_NVIDIA=$([[ $skip_nvidia == "o" || $skip_nvidia == "O" ]] && echo true || echo false)
+
+    read -p "Sauter l'installation des outils gaming ? (o/n) [n]: " skip_gaming
+    SKIP_GAMING=$([[ $skip_gaming == "o" || $skip_gaming == "O" ]] && echo true || echo false)
+
+    read -p "Sauter l'installation des outils AI/ML ? (o/n) [n]: " skip_ai
+    SKIP_AI=$([[ $skip_ai == "o" || $skip_ai == "O" ]] && echo true || echo false)
+
+    read -p "Sauter l'installation des applications AUR ? (o/n) [n]: " skip_aur
+    SKIP_AUR=$([[ $skip_aur == "o" || $skip_aur == "O" ]] && echo true || echo false)
+
+    # Sauvegarder la config
+    cat > "$CONFIG_FILE" << EOF
+# Configuration EndeavourOS Setup - Générée le $(date)
+SKIP_NVIDIA=$SKIP_NVIDIA
+SKIP_GAMING=$SKIP_GAMING
+SKIP_AI=$SKIP_AI
+SKIP_AUR=$SKIP_AUR
+EOF
+
+    print_success "Configuration sauvegardée dans $CONFIG_FILE"
 }
 
 #######################################
@@ -1389,9 +1466,11 @@ optimize_btrfs_filesystems() {
 main() {
     # Initialisation
     check_root
+    check_dependencies
     print_header
     get_system_info
     detect_wayland
+    load_config
     touch "$LOG_FILE"
     echo "=== Début du log - $(date) ===" > "$LOG_FILE"
 
@@ -1414,10 +1493,11 @@ main() {
         echo -e "${CYAN}║ 11. Nettoyer le système                           ║${NC}"
         echo -e "${CYAN}║ 12. Voir le statut final                          ║${NC}"
         echo -e "${CYAN}║ 13. Détecter les disques BTRFS                    ║${NC}"
+        echo -e "${CYAN}║ 14. Configurer les options de compatibilité       ║${NC}"
         echo -e "${CYAN}║  0. Quitter                                      ║${NC}"
         echo -e "${CYAN}╚══════════════════════════════════════════════════╝${NC}"
         echo ""
-        read -p "Choisissez une option (0-13): " choice
+        read -p "Choisissez une option (0-14): " choice
 
         case $choice in
             1)
@@ -1463,6 +1543,10 @@ main() {
                 show_detected_disks
                 read -p "Appuyez sur Entrée pour continuer..."
                 ;;
+            14)
+                configure_skips
+                read -p "Appuyez sur Entrée pour continuer..."
+                ;;
             0)
                 print_step "Merci d'avoir utilisé le script EndeavourOS Unified Setup 2026 !"
                 echo ""
@@ -1470,7 +1554,7 @@ main() {
                 exit 0
                 ;;
             *)
-                print_error "Option invalide ! Veuillez choisir entre 0 et 13."
+                print_error "Option invalide ! Veuillez choisir entre 0 et 14."
                 sleep 2
                 ;;
         esac
@@ -1478,4 +1562,5 @@ main() {
 }
 
 # Point d'entrée du script
+trap 'echo ""; print_warning "Script interrompu. Log disponible: $LOG_FILE"' INT TERM
 main "$@"

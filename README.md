@@ -1,7 +1,7 @@
 🚀 EndeavourOS Unified Setup 2026
 Script tout-en-un pour EndeavourOS - Post-installation, Gaming, AI, Terminal moderne, BTRFS et Wayland
 
-<img src="https://img.shields.io/badge/Version-3.0.0-blue?style=for-the-badge" alt="Version" />
+<img src="https://img.shields.io/badge/Version-3.1.0-blue?style=for-the-badge" alt="Version" />
 <img src="https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge" alt="License: MIT" />
 <img src="https://img.shields.io/badge/Shell-Bash-4EAA25?style=for-the-badge&logo=gnu-bash&logoColor=white" alt="Shell: Bash" />
 <img src="https://img.shields.io/badge/EndeavourOS-Compatible-7F5AB6?style=for-the-badge&logo=linux&logoColor=white" alt="EndeavourOS" />
@@ -75,6 +75,7 @@ Configuration gaming optimisée (Proton-GE, DXVK, VKD3D)
 Terminal moderne avec thème personnalisé (Starship, Kitty)
 Détection et configuration automatique des disques BTRFS
 Support Wayland et X11 (détection automatique)
+Compatibilité multi-machines avec configuration personnalisable
 
 🎨 Interface utilisateur moderne
 
@@ -442,9 +443,9 @@ Setup gaming optimisé
 15-30 min
 
 
-3
-Setup terminal moderne
-10-15 min
+14
+Configuration multi-machines
+2-5 min
 
 
 4
@@ -487,6 +488,19 @@ yay -Qm
 Personnalisation
 # Reconfigurer Starship
 starship preset pastel-powerline -o ~/.config/starship.toml
+
+Configuration multi-machines
+# Créer un fichier de configuration personnalisé
+~/.endeavour_setup_config
+
+# Exemple de contenu
+SKIP_NVIDIA=true
+SKIP_GAMING=false
+SKIP_AI=true
+SKIP_AUR=false
+
+# Charger la configuration automatiquement
+# Le script charge automatiquement ~/.endeavour_setup_config si présent
 
 # Modifier la configuration Kitty
 nano ~/.config/kitty/kitty.conf
